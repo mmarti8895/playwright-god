@@ -46,7 +46,49 @@ EXTENSION_TO_LANGUAGE: dict[str, str] = {
     ".sql": "sql",
     ".toml": "toml",
     ".xml": "xml",
+    # Auth / logging config formats
+    ".properties": "properties",
+    ".ini": "ini",
+    ".conf": "conf",
+    ".config": "config",
 }
+
+# Filenames (case-insensitive) that hold auth or logging configuration and
+# should always be indexed even when they have no recognised extension.
+_AUTH_LOGGING_FILENAMES: frozenset[str] = frozenset(
+    {
+        # SAML / SSO metadata
+        "saml-config.json",
+        "saml-config.xml",
+        "saml.xml",
+        "metadata.xml",
+        "sp-metadata.xml",
+        "idp-metadata.xml",
+        # Windows / Active Directory
+        "web.config",
+        # Log4j / Logback / Java logging
+        "log4j.xml",
+        "log4j2.xml",
+        "logback.xml",
+        "logback-spring.xml",
+        # Node.js logging configs
+        "winston.config.js",
+        "winston.config.ts",
+        "pino.config.js",
+        "pino.config.ts",
+        "morgan.config.js",
+        # Generic logging
+        "logging.yaml",
+        "logging.yml",
+        "logging.json",
+        "log-config.yaml",
+        "log-config.json",
+        # Environment variable templates (safe – no values, only names)
+        ".env.example",
+        ".env.template",
+        ".env.sample",
+    }
+)
 
 
 @dataclass
@@ -102,6 +144,42 @@ _BINARY_EXTENSIONS: frozenset[str] = frozenset(
         ".min.js",        # minified JS (by convention, not a real ext)
     }
 )
+
+
+# Maps special auth/logging filenames (lowercase) to their language label.
+# This avoids a series of if/elif chains in _detect_language.
+_SPECIAL_FILENAME_LANGUAGES: dict[str, str] = {
+    # SAML / SSO metadata
+    "saml-config.json":  "saml-config",
+    "saml-config.xml":   "saml-config",
+    "saml.xml":          "saml-config",
+    "metadata.xml":      "saml-config",
+    "sp-metadata.xml":   "saml-config",
+    "idp-metadata.xml":  "saml-config",
+    # Windows / Active Directory
+    "web.config":        "xml",
+    # Log4j / Logback
+    "log4j.xml":         "log-config",
+    "log4j2.xml":        "log-config",
+    "logback.xml":       "log-config",
+    "logback-spring.xml": "log-config",
+    # Node.js logging
+    "winston.config.js": "javascript",
+    "winston.config.ts": "javascript",
+    "pino.config.js":    "javascript",
+    "pino.config.ts":    "javascript",
+    "morgan.config.js":  "javascript",
+    # Generic logging configs
+    "logging.yaml":      "yaml",
+    "logging.yml":       "yaml",
+    "log-config.yaml":   "yaml",
+    "logging.json":      "json",
+    "log-config.json":   "json",
+    # Environment variable templates
+    ".env.example":      "env",
+    ".env.template":     "env",
+    ".env.sample":       "env",
+}
 
 
 class RepositoryCrawler:
@@ -192,8 +270,16 @@ class RepositoryCrawler:
     # ------------------------------------------------------------------
 
     def _should_skip(self, path: Path, root: Path) -> bool:
-        """Return True if *path* matches any skip pattern or has a binary extension."""
+        """Return True if *path* matches any skip pattern or has a binary extension.
+
+        Auth/logging configuration files (e.g. ``web.config``, ``saml.xml``,
+        ``logback.xml``) are always kept even when their extension or name would
+        otherwise match a skip pattern.
+        """
         name = path.name
+        # Auth/logging configs are never skipped.
+        if name.lower() in _AUTH_LOGGING_FILENAMES:
+            return False
         # Check name-based patterns
         for pattern in self.skip_patterns:
             if fnmatch.fnmatch(name, pattern):
@@ -205,7 +291,10 @@ class RepositoryCrawler:
         return False
 
     def _detect_language(self, path: Path) -> str:
-        """Return a language string based on the file extension."""
+        """Return a language string based on the file name or extension."""
+        name_lower = path.name.lower()
+        if name_lower in _SPECIAL_FILENAME_LANGUAGES:
+            return _SPECIAL_FILENAME_LANGUAGES[name_lower]
         suffix = path.suffix.lower()
         return EXTENSION_TO_LANGUAGE.get(suffix, "unknown")
 

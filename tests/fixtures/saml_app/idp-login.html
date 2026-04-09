@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Identity Provider Login</title>
+</head>
+<body>
+  <h1>Identity Provider</h1>
+  <form id="idp-login-form" action="/saml/callback" method="post">
+    <label for="username">Username</label>
+    <input id="username" type="text" name="username" placeholder="your-username" />
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" placeholder="your-password" />
+    <button type="submit">Sign In</button>
+  </form>
+</body>
+</html>

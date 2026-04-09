@@ -1,0 +1,7 @@
+{
+  "sp_entity_id": "https://app.example.com",
+  "sp_acs_url": "https://app.example.com/saml/callback",
+  "idp_sso_url": "https://idp.example.com/saml/sso",
+  "idp_entity_id": "https://idp.example.com",
+  "name_id_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+}

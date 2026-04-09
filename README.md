@@ -34,8 +34,12 @@ PlaywrightTestGenerator      ← builds a prompt from the retrieved context and 
 
 ```bash
 pip install -e .
-# or install with optional OpenAI support
-pip install -e ".[openai]"
+# or install with support for a specific LLM provider
+pip install -e ".[openai]"       # OpenAI (GPT-4o, etc.)
+pip install -e ".[anthropic]"    # Anthropic Claude
+pip install -e ".[gemini]"       # Google Gemini
+pip install -e ".[ollama]"       # Ollama (local LLMs, requires requests)
+pip install -e ".[all-llms]"     # All providers at once
 ```
 
 ---
@@ -75,14 +79,22 @@ Options:
 | `-c`, `--collection` | `repo` | ChromaDB collection name |
 | `-o`, `--output` | stdout | Write test to this file |
 | `--n-context` | `10` | Number of context chunks to retrieve |
-| `--model` | `gpt-4o` | OpenAI model (used when `OPENAI_API_KEY` is set) |
+| `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template` |
+| `--model` | provider default | Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `gemini-1.5-pro`, `llama3`) |
+| `--api-key` | env var | API key (overrides the environment variable) |
+| `--ollama-url` | `http://localhost:11434` | Ollama server URL (used only with `--provider=ollama`) |
 
 ### LLM backends
 
-| Condition | Backend used |
-|-----------|-------------|
-| `OPENAI_API_KEY` env var is set | `OpenAIClient` (calls OpenAI Chat Completions API) |
-| No API key | `TemplateLLMClient` (offline template generator, no API call) |
+| Provider | How to select | Default model | Env var |
+|----------|--------------|---------------|---------|
+| OpenAI | `--provider openai` or `OPENAI_API_KEY` set | `gpt-4o` | `OPENAI_API_KEY` |
+| Anthropic | `--provider anthropic` or `ANTHROPIC_API_KEY` set | `claude-3-5-sonnet-20241022` | `ANTHROPIC_API_KEY` |
+| Google Gemini | `--provider gemini` or `GOOGLE_API_KEY` set | `gemini-1.5-pro` | `GOOGLE_API_KEY` |
+| Ollama (local) | `--provider ollama` | `llama3` | *(none needed)* |
+| Template | `--provider template` or no key found | *(offline)* | *(none needed)* |
+
+Auto-detection order (when `--provider` is not specified): `OPENAI_API_KEY` → `ANTHROPIC_API_KEY` → `GOOGLE_API_KEY` → template fallback.
 
 ---
 
@@ -97,6 +109,15 @@ playwright-god generate "todo list: add, complete, and delete items" -d .idx -o 
 
 # Generate with OpenAI
 OPENAI_API_KEY=sk-... playwright-god generate "login page" -d .idx -o tests/login.spec.ts
+
+# Generate with Anthropic Claude
+ANTHROPIC_API_KEY=ant-... playwright-god generate "login page" -d .idx -o tests/login.spec.ts
+
+# Generate with Google Gemini
+GOOGLE_API_KEY=AIza... playwright-god generate "login page" -d .idx -o tests/login.spec.ts
+
+# Generate with a local Ollama model
+playwright-god generate "login page" -d .idx --provider ollama --model mistral -o tests/login.spec.ts
 ```
 
 ---
@@ -109,7 +130,7 @@ OPENAI_API_KEY=sk-... playwright-god generate "login page" -d .idx -o tests/logi
 | `playwright_god/chunker.py` | Split `FileInfo` into overlapping `Chunk` objects |
 | `playwright_god/embedder.py` | Embedding functions: `MockEmbedder` (tests), `DefaultEmbedder` (ChromaDB/ONNX), `OpenAIEmbedder` |
 | `playwright_god/indexer.py` | ChromaDB-backed vector store: `add_chunks`, `search`, `clear` |
-| `playwright_god/generator.py` | `TemplateLLMClient`, `OpenAIClient`, `PlaywrightTestGenerator` |
+| `playwright_god/generator.py` | `TemplateLLMClient`, `OpenAIClient`, `AnthropicClient`, `GeminiClient`, `OllamaClient`, `PlaywrightTestGenerator` |
 | `playwright_god/cli.py` | Click CLI (`index` and `generate` commands) |
 
 ---

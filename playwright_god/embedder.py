@@ -48,7 +48,7 @@ class MockEmbedder:
 
     @staticmethod
     def _embed_one(text: str) -> list[float]:
-        """Return a normalised float vector of length :data:`EMBEDDING_DIM`."""
+        """Return a normalized float vector of length :data:`EMBEDDING_DIM`."""
         # Build a deterministic byte stream from repeated hashing
         seed = text.encode("utf-8")
         raw: list[int] = []
@@ -59,7 +59,7 @@ class MockEmbedder:
         # Map bytes to [-1, 1]
         vector = [(b / 127.5) - 1.0 for b in raw[:EMBEDDING_DIM]]
 
-        # Normalise to unit length
+        # Normalize to unit length
         magnitude = math.sqrt(sum(v * v for v in vector)) or 1.0
         return [v / magnitude for v in vector]
 

@@ -44,7 +44,7 @@ class TestMockEmbedder:
         assert r1 == r2
 
     def test_unit_vector(self):
-        result = self.embedder(["normalised vector test"])[0]
+        result = self.embedder(["normalized vector test"])[0]
         magnitude = math.sqrt(sum(v * v for v in result))
         assert abs(magnitude - 1.0) < 1e-6
 

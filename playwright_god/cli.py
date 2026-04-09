@@ -10,7 +10,14 @@ import click
 from .crawler import RepositoryCrawler
 from .chunker import FileChunker
 from .embedder import DefaultEmbedder
-from .generator import OpenAIClient, PlaywrightTestGenerator, TemplateLLMClient
+from .generator import (
+    AnthropicClient,
+    GeminiClient,
+    OllamaClient,
+    OpenAIClient,
+    PlaywrightTestGenerator,
+    TemplateLLMClient,
+)
 from .indexer import RepositoryIndexer
 
 
@@ -135,9 +142,37 @@ def index(
 )
 @click.option(
     "--model",
-    default="gpt-4o",
+    default=None,
     show_default=True,
-    help="OpenAI model to use (ignored if OPENAI_API_KEY is not set).",
+    help=(
+        "Model name to use with the selected provider "
+        "(e.g. gpt-4o, claude-3-5-sonnet-20241022, gemini-1.5-pro, llama3)."
+    ),
+)
+@click.option(
+    "--provider",
+    default=None,
+    type=click.Choice(
+        ["openai", "anthropic", "gemini", "ollama", "template"],
+        case_sensitive=False,
+    ),
+    help=(
+        "LLM provider to use.  Auto-detected from environment variables when "
+        "not set (OPENAI_API_KEY → openai, ANTHROPIC_API_KEY → anthropic, "
+        "GOOGLE_API_KEY → gemini).  Falls back to the offline template "
+        "generator when no key is found."
+    ),
+)
+@click.option(
+    "--api-key",
+    default=None,
+    help="API key for the selected provider (overrides the environment variable).",
+)
+@click.option(
+    "--ollama-url",
+    default="http://localhost:11434",
+    show_default=True,
+    help="Base URL of the Ollama server (used only when --provider=ollama).",
 )
 @click.option(
     "--mock-embedder",
@@ -152,7 +187,10 @@ def generate(
     collection: str,
     output: str | None,
     n_context: int,
-    model: str,
+    model: str | None,
+    provider: str | None,
+    api_key: str | None,
+    ollama_url: str,
     mock_embedder: bool,
 ) -> None:
     """Generate a Playwright test for the given DESCRIPTION.
@@ -176,13 +214,46 @@ def generate(
             err=True,
         )
 
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if api_key:
-        click.echo(f"Using OpenAI model: {model}", err=True)
-        llm_client = OpenAIClient(api_key=api_key, model=model)
+    # Auto-detect provider from environment when not explicitly specified
+    if provider is None:
+        if api_key or os.environ.get("OPENAI_API_KEY"):
+            provider = "openai"
+        elif os.environ.get("ANTHROPIC_API_KEY"):
+            provider = "anthropic"
+        elif os.environ.get("GOOGLE_API_KEY"):
+            provider = "gemini"
+        else:
+            provider = "template"
+
+    llm_client: OpenAIClient | AnthropicClient | GeminiClient | OllamaClient | TemplateLLMClient
+    if provider == "openai":
+        resolved_model = model or "gpt-4o"
+        click.echo(f"Using OpenAI model: {resolved_model}", err=True)
+        llm_client = OpenAIClient(
+            api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
+            model=resolved_model,
+        )
+    elif provider == "anthropic":
+        resolved_model = model or "claude-3-5-sonnet-20241022"
+        click.echo(f"Using Anthropic model: {resolved_model}", err=True)
+        llm_client = AnthropicClient(
+            api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""),
+            model=resolved_model,
+        )
+    elif provider == "gemini":
+        resolved_model = model or "gemini-1.5-pro"
+        click.echo(f"Using Google Gemini model: {resolved_model}", err=True)
+        llm_client = GeminiClient(
+            api_key=api_key or os.environ.get("GOOGLE_API_KEY", ""),
+            model=resolved_model,
+        )
+    elif provider == "ollama":
+        resolved_model = model or "llama3"
+        click.echo(f"Using Ollama model: {resolved_model} at {ollama_url}", err=True)
+        llm_client = OllamaClient(model=resolved_model, base_url=ollama_url)
     else:
         click.echo(
-            "OPENAI_API_KEY not set – using offline template generator.",
+            "No LLM provider detected – using offline template generator.",
             err=True,
         )
         llm_client = TemplateLLMClient()

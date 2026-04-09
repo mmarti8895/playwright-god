@@ -8,7 +8,10 @@ import pytest
 
 from playwright_god.embedder import MockEmbedder
 from playwright_god.generator import (
+    AnthropicClient,
+    GeminiClient,
     LLMClient,
+    OllamaClient,
     OpenAIClient,
     PlaywrightTestGenerator,
     TemplateLLMClient,
@@ -268,3 +271,176 @@ class TestBuildPrompt:
         gen = PlaywrightTestGenerator()
         prompt = gen._build_prompt("desc", [], "EXTRA")
         assert "EXTRA" in prompt
+
+
+# ---------------------------------------------------------------------------
+# OpenAIClient
+# ---------------------------------------------------------------------------
+
+
+class TestOpenAIClient:
+    def test_raises_without_openai_package(self):
+        with patch.dict("sys.modules", {"openai": None}):
+            with pytest.raises(ImportError, match="openai"):
+                OpenAIClient(api_key="test")
+
+    def test_complete_calls_api(self):
+        mock_openai = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "// generated test"
+        mock_openai.OpenAI.return_value.chat.completions.create.return_value = mock_response
+
+        with patch.dict("sys.modules", {"openai": mock_openai}):
+            client = OpenAIClient(api_key="test-key", model="gpt-4o")
+            result = client.complete("some prompt")
+
+        assert result == "// generated test"
+        mock_openai.OpenAI.return_value.chat.completions.create.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# AnthropicClient
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicClient:
+    def test_raises_without_anthropic_package(self):
+        with patch.dict("sys.modules", {"anthropic": None}):
+            with pytest.raises(ImportError, match="anthropic"):
+                AnthropicClient(api_key="test")
+
+    def test_complete_calls_api(self):
+        mock_anthropic = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content[0].text = "// anthropic generated test"
+        mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
+
+        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
+            client = AnthropicClient(api_key="test-key", model="claude-3-5-sonnet-20241022")
+            result = client.complete("some prompt")
+
+        assert result == "// anthropic generated test"
+        mock_anthropic.Anthropic.return_value.messages.create.assert_called_once()
+
+    def test_complete_passes_system_prompt(self):
+        mock_anthropic = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content[0].text = "result"
+        mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
+
+        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
+            client = AnthropicClient(api_key="test-key")
+            client.complete("test prompt")
+
+        call_kwargs = mock_anthropic.Anthropic.return_value.messages.create.call_args[1]
+        assert call_kwargs["system"] == PlaywrightTestGenerator.SYSTEM_PROMPT
+
+    def test_default_model(self):
+        mock_anthropic = MagicMock()
+        with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
+            client = AnthropicClient(api_key="test-key")
+        assert client.model == "claude-3-5-sonnet-20241022"
+
+
+# ---------------------------------------------------------------------------
+# GeminiClient
+# ---------------------------------------------------------------------------
+
+
+class TestGeminiClient:
+    def test_raises_without_google_generativeai_package(self):
+        with patch.dict("sys.modules", {"google.generativeai": None, "google": None}):
+            with pytest.raises(ImportError, match="google-generativeai"):
+                GeminiClient(api_key="test")
+
+    def test_complete_calls_api(self):
+        mock_genai = MagicMock()
+        mock_response = MagicMock()
+        mock_response.text = "// gemini generated test"
+        mock_genai.GenerativeModel.return_value.generate_content.return_value = mock_response
+
+        mock_google = MagicMock()
+        mock_google.generativeai = mock_genai
+
+        with patch.dict("sys.modules", {"google": mock_google, "google.generativeai": mock_genai}):
+            client = GeminiClient(api_key="test-key", model="gemini-1.5-pro")
+            result = client.complete("some prompt")
+
+        assert result == "// gemini generated test"
+        mock_genai.GenerativeModel.return_value.generate_content.assert_called_once_with(
+            "some prompt"
+        )
+
+    def test_default_model(self):
+        mock_genai = MagicMock()
+        mock_google = MagicMock()
+        mock_google.generativeai = mock_genai
+
+        with patch.dict("sys.modules", {"google": mock_google, "google.generativeai": mock_genai}):
+            client = GeminiClient(api_key="test-key")
+
+        mock_genai.GenerativeModel.assert_called_once()
+        call_kwargs = mock_genai.GenerativeModel.call_args
+        assert call_kwargs[1]["model_name"] == "gemini-1.5-pro"
+
+
+# ---------------------------------------------------------------------------
+# OllamaClient
+# ---------------------------------------------------------------------------
+
+
+class TestOllamaClient:
+    def test_raises_without_requests_package(self):
+        with patch.dict("sys.modules", {"requests": None}):
+            with pytest.raises(ImportError, match="requests"):
+                OllamaClient()
+
+    def test_default_model_and_url(self):
+        client = OllamaClient()
+        assert client.model == "llama3"
+        assert client.base_url == "http://localhost:11434"
+
+    def test_custom_model_and_url(self):
+        client = OllamaClient(model="mistral", base_url="http://myserver:11434")
+        assert client.model == "mistral"
+        assert client.base_url == "http://myserver:11434"
+
+    def test_trailing_slash_stripped_from_url(self):
+        client = OllamaClient(base_url="http://localhost:11434/")
+        assert client.base_url == "http://localhost:11434"
+
+    def test_complete_calls_rest_api(self):
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"message": {"content": "// ollama result"}}
+        mock_response.raise_for_status = MagicMock()
+        mock_requests.post.return_value = mock_response
+
+        with patch.dict("sys.modules", {"requests": mock_requests}):
+            client = OllamaClient(model="llama3")
+            result = client.complete("some prompt")
+
+        assert result == "// ollama result"
+        mock_requests.post.assert_called_once()
+        call_args = mock_requests.post.call_args
+        assert call_args[0][0] == "http://localhost:11434/api/chat"
+        payload = call_args[1]["json"]
+        assert payload["model"] == "llama3"
+        assert payload["stream"] is False
+
+    def test_complete_passes_system_and_user_messages(self):
+        mock_requests = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"message": {"content": "result"}}
+        mock_response.raise_for_status = MagicMock()
+        mock_requests.post.return_value = mock_response
+
+        with patch.dict("sys.modules", {"requests": mock_requests}):
+            client = OllamaClient()
+            client.complete("user message")
+
+        payload = mock_requests.post.call_args[1]["json"]
+        roles = [m["role"] for m in payload["messages"]]
+        assert roles == ["system", "user"]
+        assert payload["messages"][1]["content"] == "user message"
+

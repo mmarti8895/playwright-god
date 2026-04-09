@@ -1,8 +1,11 @@
 """Playwright test generator using LLM + RAG context.
 
-Provides two LLM backends:
+Provides the following LLM backends:
 
 * :class:`OpenAIClient` – calls the OpenAI Chat Completions API.
+* :class:`AnthropicClient` – calls the Anthropic Claude API.
+* :class:`GeminiClient` – calls the Google Gemini API.
+* :class:`OllamaClient` – calls a locally running Ollama instance.
 * :class:`TemplateLLMClient` – offline fallback; produces a useful skeleton
   Playwright test from the retrieved context without any API calls.
 """
@@ -76,6 +79,140 @@ class OpenAIClient(LLMClient):
             temperature=0.2,
         )
         return response.choices[0].message.content or ""
+
+
+class AnthropicClient(LLMClient):
+    """Calls the Anthropic Claude API.
+
+    Parameters
+    ----------
+    api_key:
+        Anthropic API key.  Falls back to the ``ANTHROPIC_API_KEY``
+        environment variable if *None*.
+    model:
+        Model name (default ``claude-3-5-sonnet-20241022``).
+    max_tokens:
+        Maximum number of tokens to generate (default ``4096``).
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "claude-3-5-sonnet-20241022",
+        max_tokens: int = 4096,
+    ) -> None:
+        try:
+            import anthropic  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "anthropic is required for AnthropicClient. "
+                "Install it with: pip install anthropic"
+            ) from exc
+
+        import anthropic
+
+        self._client = anthropic.Anthropic(
+            api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        )
+        self.model = model
+        self.max_tokens = max_tokens
+
+    def complete(self, prompt: str) -> str:
+        message = self._client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system=PlaywrightTestGenerator.SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text
+
+
+class GeminiClient(LLMClient):
+    """Calls the Google Gemini API.
+
+    Parameters
+    ----------
+    api_key:
+        Google API key.  Falls back to the ``GOOGLE_API_KEY`` environment
+        variable if *None*.
+    model:
+        Model name (default ``gemini-1.5-pro``).
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "gemini-1.5-pro",
+    ) -> None:
+        try:
+            import google.generativeai as genai  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "google-generativeai is required for GeminiClient. "
+                "Install it with: pip install google-generativeai"
+            ) from exc
+
+        import google.generativeai as genai
+
+        genai.configure(api_key=api_key or os.environ.get("GOOGLE_API_KEY", ""))
+        self._client = genai.GenerativeModel(
+            model_name=model,
+            system_instruction=PlaywrightTestGenerator.SYSTEM_PROMPT,
+        )
+
+    def complete(self, prompt: str) -> str:
+        response = self._client.generate_content(prompt)
+        return response.text
+
+
+class OllamaClient(LLMClient):
+    """Calls a locally running Ollama instance via its REST API.
+
+    Parameters
+    ----------
+    model:
+        Model name served by Ollama (default ``llama3``).
+    base_url:
+        Base URL of the Ollama server (default ``http://localhost:11434``).
+    """
+
+    def __init__(
+        self,
+        model: str = "llama3",
+        base_url: str = "http://localhost:11434",
+    ) -> None:
+        try:
+            import requests  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "requests is required for OllamaClient. "
+                "Install it with: pip install requests"
+            ) from exc
+
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+
+    def complete(self, prompt: str) -> str:
+        import requests
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": PlaywrightTestGenerator.SYSTEM_PROMPT,
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "stream": False,
+        }
+        response = requests.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+            timeout=120,
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
 
 
 class TemplateLLMClient(LLMClient):

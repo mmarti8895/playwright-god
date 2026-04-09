@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Logging App</title>
+</head>
+<body>
+  <h1>Logging Demo App</h1>
+  <button id="submit-btn" onclick="logAction()">Submit</button>
+  <button id="delete-btn" onclick="logDelete()">Delete</button>
+  <div id="status"></div>
+  <script>
+    function logAction() {
+      console.log('form submitted');
+      document.getElementById('status').textContent = 'Submitted';
+    }
+    function logDelete() {
+      console.warn('delete action triggered');
+      document.getElementById('status').textContent = 'Deleted';
+      fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'delete', timestamp: Date.now() })
+      });
+    }
+  </script>
+</body>
+</html>

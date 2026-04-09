@@ -7,6 +7,7 @@ when applied to its own codebase.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -63,7 +64,6 @@ class TestSelfIndex:
         # The crawler should find the Python source files
         assert "Found" in result.output
         # Should report more than zero files
-        import re
         match = re.search(r"Found (\d+) files", result.output)
         assert match, "Expected 'Found N files' in output"
         assert int(match.group(1)) > 0

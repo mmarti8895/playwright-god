@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "playwright-god"
+version = "0.1.0"
+description = "AI-powered Playwright test generator backed by a RAG pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "chromadb>=0.5",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "click[testing]",
+]
+
+[project.scripts]
+playwright-god = "playwright_god.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["playwright_god*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["playwright_god"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true

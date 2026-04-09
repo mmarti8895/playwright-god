@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sample Todo App</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Todo App</h1>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/login">Login</a>
+    </nav>
+  </header>
+
+  <main id="app">
+    <section id="login-form" class="form-section">
+      <h2>Login</h2>
+      <form action="/api/login" method="post">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required />
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required />
+
+        <button type="submit" id="login-btn">Login</button>
+      </form>
+      <p>Don't have an account? <a href="/register">Register</a></p>
+    </section>
+
+    <section id="todo-list" class="hidden">
+      <h2>My Todos</h2>
+      <form id="add-todo-form">
+        <input type="text" id="new-todo" placeholder="Add a new todo…" data-testid="new-todo-input" />
+        <button type="submit" id="add-todo-btn">Add</button>
+      </form>
+      <ul id="todos" data-testid="todo-list"></ul>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

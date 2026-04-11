@@ -1,0 +1,896 @@
+{
+  "generated_at": "2026-04-11T18:44:17.515805+00:00",
+  "total_files": 47,
+  "total_chunks": 119,
+  "languages": {
+    "unknown": 2,
+    "markdown": 2,
+    "python": 32,
+    "toml": 1,
+    "text": 1,
+    "html": 4,
+    "javascript": 2,
+    "env": 1,
+    "saml-config": 1,
+    "css": 1
+  },
+  "files": [
+    {
+      "path": ".gitignore",
+      "language": "unknown",
+      "chunks": [
+        {
+          "chunk_id": "0c4a4dee42dc1511",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "b228c9d26b709ab9",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "911608b357bfc776",
+          "start_line": 141,
+          "end_line": 210
+        }
+      ]
+    },
+    {
+      "path": "LICENSE",
+      "language": "unknown",
+      "chunks": [
+        {
+          "chunk_id": "7e7bde1642a38b05",
+          "start_line": 1,
+          "end_line": 21
+        }
+      ]
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "chunks": [
+        {
+          "chunk_id": "8d0933d2cbd9b89a",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "3f0416cb2fe487ac",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "32d15e55bb69bf54",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "56a7c6090ccc8396",
+          "start_line": 211,
+          "end_line": 250
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\__init__.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "2b6188a790b58a49",
+          "start_line": 1,
+          "end_line": 50
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\auth_templates.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "ff5f0d0591eac73b",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "a2325132ad21b004",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "3159827cec7f0311",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "33f140a365b73b7f",
+          "start_line": 211,
+          "end_line": 263
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\chunker.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "85d77540565a17c8",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "330d10debdaed922",
+          "start_line": 71,
+          "end_line": 119
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\cli.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "9cbaa8703dd8c8bc",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "178b7c6a036e8a93",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "5d62eafadae055ab",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "339944feeb96feca",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "2e63789246cfec33",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "169ab68eb0524579",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "956e1fbcbe539e19",
+          "start_line": 421,
+          "end_line": 500
+        },
+        {
+          "chunk_id": "1ec4745272b0972c",
+          "start_line": 491,
+          "end_line": 570
+        },
+        {
+          "chunk_id": "6eb4d39889fa4beb",
+          "start_line": 561,
+          "end_line": 640
+        },
+        {
+          "chunk_id": "7d2e46128445c588",
+          "start_line": 631,
+          "end_line": 661
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\crawler.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "429e31d7e85dd016",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "c15c9037b72854bb",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "496f37ce6054c3d2",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "55c54d61170dafc3",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "60e0e0e2542af93c",
+          "start_line": 281,
+          "end_line": 318
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\embedder.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "e4217832029291ab",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "590e1cc664503a24",
+          "start_line": 71,
+          "end_line": 135
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\generator.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "4d6cadc466224ce7",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "13e5f4edc6e03f7e",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "946afd95e03d5984",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "42c65784ad96cfc6",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "cde8b858c8ade127",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "b5c76da6b53a7d91",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "95e855a0704b9574",
+          "start_line": 421,
+          "end_line": 500
+        },
+        {
+          "chunk_id": "74b49d6fa2e6486a",
+          "start_line": 491,
+          "end_line": 570
+        },
+        {
+          "chunk_id": "470e21ea12f7ddf1",
+          "start_line": 561,
+          "end_line": 640
+        },
+        {
+          "chunk_id": "ff02e1e853bea659",
+          "start_line": 631,
+          "end_line": 710
+        },
+        {
+          "chunk_id": "df8f140f4a91e0fc",
+          "start_line": 701,
+          "end_line": 780
+        },
+        {
+          "chunk_id": "47665338ba99745d",
+          "start_line": 771,
+          "end_line": 842
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\indexer.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "d47b3cacd544d9db",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "66ef33e88c7c1c49",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "cd22298110ec68b0",
+          "start_line": 141,
+          "end_line": 210
+        }
+      ]
+    },
+    {
+      "path": "playwright_god\\memory_map.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "e5fd68ac181f1704",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "1b4a4a967a0da637",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "f577d238f11fcd65",
+          "start_line": 141,
+          "end_line": 196
+        }
+      ]
+    },
+    {
+      "path": "pyproject.toml",
+      "language": "toml",
+      "chunks": [
+        {
+          "chunk_id": "3e8c74c8338c9f97",
+          "start_line": 1,
+          "end_line": 50
+        }
+      ]
+    },
+    {
+      "path": "requirements.txt",
+      "language": "text",
+      "chunks": [
+        {
+          "chunk_id": "efce1d750e99c7dd",
+          "start_line": 1,
+          "end_line": 16
+        }
+      ]
+    },
+    {
+      "path": "tests\\README.md",
+      "language": "markdown",
+      "chunks": [
+        {
+          "chunk_id": "c1fcc3dd7ab1437f",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "26e42b2ff1e68383",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "563ee4373365394c",
+          "start_line": 141,
+          "end_line": 219
+        }
+      ]
+    },
+    {
+      "path": "tests\\conftest.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "33af752b5f857230",
+          "start_line": 1,
+          "end_line": 71
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_accessibility.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "a40cb437b46bc71e",
+          "start_line": 1,
+          "end_line": 14
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_auth_flow.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "5d11cfc98e0acf52",
+          "start_line": 1,
+          "end_line": 44
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_error_handling.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "fb4d87523843f3bc",
+          "start_line": 1,
+          "end_line": 27
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_event_lifecycle.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "8211e1df93a2d1a0",
+          "start_line": 1,
+          "end_line": 36
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_invites_notifications.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "cfde2bb21e1c58ac",
+          "start_line": 1,
+          "end_line": 6
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_messaging.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "2bdc1def9e3814e5",
+          "start_line": 1,
+          "end_line": 15
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_responsive_layouts.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "5ea09e1730b7892e",
+          "start_line": 1,
+          "end_line": 20
+        }
+      ]
+    },
+    {
+      "path": "tests\\e2e\\test_smoke_app.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "66a28eec2073fec4",
+          "start_line": 1,
+          "end_line": 15
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\conftest.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "32fd261590c4f61d",
+          "start_line": 1,
+          "end_line": 38
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\logging_app\\index.html",
+      "language": "html",
+      "chunks": [
+        {
+          "chunk_id": "ce2ab5c70401cbef",
+          "start_line": 1,
+          "end_line": 28
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\logging_app\\winston.config.js",
+      "language": "javascript",
+      "chunks": [
+        {
+          "chunk_id": "5f63f55f0338dbaf",
+          "start_line": 1,
+          "end_line": 11
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\saml_app\\.env.example",
+      "language": "env",
+      "chunks": [
+        {
+          "chunk_id": "6d7abb2dce8b282b",
+          "start_line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\saml_app\\idp-login.html",
+      "language": "html",
+      "chunks": [
+        {
+          "chunk_id": "08f5c31f36d172a9",
+          "start_line": 1,
+          "end_line": 17
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\saml_app\\index.html",
+      "language": "html",
+      "chunks": [
+        {
+          "chunk_id": "5063aff851b0ab9c",
+          "start_line": 1,
+          "end_line": 12
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\saml_app\\saml-config.json",
+      "language": "saml-config",
+      "chunks": [
+        {
+          "chunk_id": "97ed9f1eed8f0f7d",
+          "start_line": 1,
+          "end_line": 7
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\sample_app\\app.js",
+      "language": "javascript",
+      "chunks": [
+        {
+          "chunk_id": "42719a4149b14d75",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "3cfe6dd906bdb889",
+          "start_line": 71,
+          "end_line": 132
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\sample_app\\index.html",
+      "language": "html",
+      "chunks": [
+        {
+          "chunk_id": "75a5b134a3c9756b",
+          "start_line": 1,
+          "end_line": 44
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\sample_app\\styles.css",
+      "language": "css",
+      "chunks": [
+        {
+          "chunk_id": "27a728b5c2c1e923",
+          "start_line": 1,
+          "end_line": 18
+        }
+      ]
+    },
+    {
+      "path": "tests\\fixtures\\sample_data.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "dbac3de2b6d03621",
+          "start_line": 1,
+          "end_line": 12
+        }
+      ]
+    },
+    {
+      "path": "tests\\helpers\\page_models.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "ee86961f8be024b2",
+          "start_line": 1,
+          "end_line": 39
+        }
+      ]
+    },
+    {
+      "path": "tests\\integration\\test_auth_pipeline.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "d39628578d071f48",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "f989f30f0c5e4888",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "7f8a9b66cb7819a2",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "7cca3066d9198ee0",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "d2b10786ad1d5006",
+          "start_line": 281,
+          "end_line": 294
+        }
+      ]
+    },
+    {
+      "path": "tests\\integration\\test_logging_pipeline.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "708dbd0edf0261d5",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "648f83200f6b5396",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "66037fb440f49d9f",
+          "start_line": 141,
+          "end_line": 217
+        }
+      ]
+    },
+    {
+      "path": "tests\\integration\\test_pipeline.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "3d8469b5d14254b4",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "43a05f4d797085b9",
+          "start_line": 71,
+          "end_line": 129
+        }
+      ]
+    },
+    {
+      "path": "tests\\integration\\test_self.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "fd979fb319314866",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "006fbe0be0bf662f",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "e2523cdf9b046f2e",
+          "start_line": 141,
+          "end_line": 165
+        }
+      ]
+    },
+    {
+      "path": "tests\\unit\\test_chunker.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "59f97a2fdd74544c",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "378c20828dbe44b4",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "af8b42c46e2febae",
+          "start_line": 141,
+          "end_line": 209
+        }
+      ]
+    },
+    {
+      "path": "tests\\unit\\test_cli.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "25734ba576257226",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "6afd16d029a28c32",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "69781aa87883219c",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "5e865d2995547eb3",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "f2ccc0ff9f556c14",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "3393df2e82a9068b",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "0a396edde9d48d44",
+          "start_line": 421,
+          "end_line": 500
+        },
+        {
+          "chunk_id": "50f142570b568668",
+          "start_line": 491,
+          "end_line": 570
+        },
+        {
+          "chunk_id": "1981cc0f45d284ff",
+          "start_line": 561,
+          "end_line": 628
+        }
+      ]
+    },
+    {
+      "path": "tests\\unit\\test_crawler.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "c4bb6ed03f2ac805",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "f4966cf81f57394f",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "e2fbcd15f49c4887",
+          "start_line": 141,
+          "end_line": 217
+        }
+      ]
+    },
+    {
+      "path": "tests\\unit\\test_embedder.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "1229cc3b96736db3",
+          "start_line": 1,
+          "end_line": 66
+        }
+      ]
+    },
+    {
+      "path": "tests\\unit\\test_generator.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "566d4be050460c20",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "6cb42edc646c03d5",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "ce685a3570d1b2d2",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "56b50f65328a6618",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "65d1995cd02634ab",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "19841f84f250dd25",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "daf1717f24075eeb",
+          "start_line": 421,
+          "end_line": 446
+        }
+      ]
+    },
+    {
+      "path": "tests\\unit\\test_indexer.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "331f83cdcb5a1677",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "955ad0099b0a2a3a",
+          "start_line": 71,
+          "end_line": 146
+        }
+      ]
+    },
+    {
+      "path": "tests\\unit\\test_memory_map.py",
+      "language": "python",
+      "chunks": [
+        {
+          "chunk_id": "1315913d8f57a450",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "f2aa3e6d9a7aa355",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "94ed746eafe6026c",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "42dcd0faac95a6f8",
+          "start_line": 211,
+          "end_line": 235
+        }
+      ]
+    }
+  ]
+}

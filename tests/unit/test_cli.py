@@ -390,8 +390,7 @@ class TestGenerateCommand:
             self._make_mock_indexer(MockEmb, MockIdx)
             os.environ.pop("OPENAI_API_KEY", None)
 
-            sep_runner = CliRunner(mix_stderr=False)
-            result = sep_runner.invoke(
+            result = runner.invoke(
                 cli,
                 [
                     "generate", "test something",
@@ -425,8 +424,7 @@ class TestGenerateCommand:
             self._make_mock_indexer(MockEmb, MockIdx)
             os.environ.pop("OPENAI_API_KEY", None)
 
-            sep_runner = CliRunner(mix_stderr=False)
-            result = sep_runner.invoke(
+            result = runner.invoke(
                 cli,
                 [
                     "generate", "test something",

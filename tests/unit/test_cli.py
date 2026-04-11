@@ -607,13 +607,11 @@ class TestPlanCommand:
         with patch("playwright_god.cli.RepositoryIndexer") as MockIdx:
             mock_indexer = MagicMock()
             mock_indexer.count.return_value = 2
-            mock_indexer._collection.get.return_value = {
-                "ids": ["c1", "c2"],
-                "metadatas": [
-                    {"file_path": "src/a.ts", "start_line": 1, "end_line": 80, "language": "typescript"},
-                    {"file_path": "src/b.ts", "start_line": 1, "end_line": 80, "language": "typescript"},
-                ],
-            }
+            from playwright_god.chunker import Chunk
+            mock_indexer.get_chunk_stubs.return_value = [
+                Chunk(file_path="src/a.ts", content="", start_line=1, end_line=80, language="typescript", chunk_id="c1"),
+                Chunk(file_path="src/b.ts", content="", start_line=1, end_line=80, language="typescript", chunk_id="c2"),
+            ]
             MockIdx.return_value = mock_indexer
 
             os.environ.pop("OPENAI_API_KEY", None)
@@ -623,6 +621,6 @@ class TestPlanCommand:
             )
 
         assert result.exit_code == 0
-        # Verify only metadatas (not documents) were requested
-        mock_indexer._collection.get.assert_called_once_with(include=["metadatas"])
+        # Verify the public helper (not the private _collection) was used
+        mock_indexer.get_chunk_stubs.assert_called_once()
 

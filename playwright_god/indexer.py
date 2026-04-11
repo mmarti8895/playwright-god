@@ -166,6 +166,31 @@ class RepositoryIndexer:
         """Return the number of chunks stored in the collection."""
         return self._collection.count()
 
+    def get_chunk_stubs(self) -> list[Chunk]:
+        """Return lightweight :class:`Chunk` objects for every stored chunk.
+
+        Each returned chunk has an empty :attr:`~Chunk.content` string; only
+        the id and metadata fields (``file_path``, ``start_line``,
+        ``end_line``, ``language``) are populated.  This is efficient for
+        operations that only need the file/line inventory (e.g. building a
+        memory map) because it avoids fetching the full document text.
+        """
+        raw = self._collection.get(include=["metadatas"])
+        return [
+            Chunk(
+                file_path=meta.get("file_path", ""),
+                content="",
+                start_line=int(meta.get("start_line", 0)),
+                end_line=int(meta.get("end_line", 0)),
+                language=meta.get("language", "unknown"),
+                chunk_id=chunk_id,
+            )
+            for chunk_id, meta in zip(
+                raw.get("ids") or [],
+                raw.get("metadatas") or [],
+            )
+        ]
+
     def clear(self) -> None:
         """Remove all chunks from the collection."""
         self._client.delete_collection(self._collection.name)

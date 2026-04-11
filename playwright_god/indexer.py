@@ -176,20 +176,30 @@ class RepositoryIndexer:
         memory map) because it avoids fetching the full document text.
         """
         raw = self._collection.get(include=["metadatas"])
-        return [
-            Chunk(
-                file_path=meta.get("file_path", ""),
-                content="",
-                start_line=int(meta.get("start_line", 0)),
-                end_line=int(meta.get("end_line", 0)),
-                language=meta.get("language", "unknown"),
-                chunk_id=chunk_id,
+        stubs: list[Chunk] = []
+        for chunk_id, meta in zip(
+            raw.get("ids") or [],
+            raw.get("metadatas") or [],
+        ):
+            if not isinstance(meta, dict):
+                continue
+            try:
+                start_line = int(meta.get("start_line", 0))
+                end_line = int(meta.get("end_line", 0))
+            except (ValueError, TypeError):
+                start_line = 0
+                end_line = 0
+            stubs.append(
+                Chunk(
+                    file_path=meta.get("file_path", ""),
+                    content="",
+                    start_line=start_line,
+                    end_line=end_line,
+                    language=meta.get("language", "unknown"),
+                    chunk_id=chunk_id,
+                )
             )
-            for chunk_id, meta in zip(
-                raw.get("ids") or [],
-                raw.get("metadatas") or [],
-            )
-        ]
+        return stubs
 
     def clear(self) -> None:
         """Remove all chunks from the collection."""

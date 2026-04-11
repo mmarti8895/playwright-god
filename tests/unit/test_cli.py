@@ -390,7 +390,8 @@ class TestGenerateCommand:
             self._make_mock_indexer(MockEmb, MockIdx)
             os.environ.pop("OPENAI_API_KEY", None)
 
-            result = runner.invoke(
+            sep_runner = CliRunner(mix_stderr=False)
+            result = sep_runner.invoke(
                 cli,
                 [
                     "generate", "test something",
@@ -401,7 +402,7 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "Memory map loaded" in result.output
+        assert "Memory map loaded" in result.stderr
         # generate should still produce TypeScript test code, not a Markdown plan
         assert (
             "test.describe(" in result.output
@@ -424,7 +425,8 @@ class TestGenerateCommand:
             self._make_mock_indexer(MockEmb, MockIdx)
             os.environ.pop("OPENAI_API_KEY", None)
 
-            result = runner.invoke(
+            sep_runner = CliRunner(mix_stderr=False)
+            result = sep_runner.invoke(
                 cli,
                 [
                     "generate", "test something",

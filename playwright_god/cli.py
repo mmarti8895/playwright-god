@@ -564,11 +564,14 @@ def plan(
             err=True,
         )
         from .embedder import MockEmbedder as _MockEmbedder
-        embedder = _MockEmbedder() if mock_embedder else DefaultEmbedder()
+        # This path only reads collection metadata to build a memory map; it
+        # does not generate embeddings or run similarity search, so avoid
+        # constructing DefaultEmbedder(), which may trigger heavyweight model
+        # initialization or downloads.
         indexer = RepositoryIndexer(
             collection_name=collection,
             persist_dir=persist_dir,
-            embedder=embedder,
+            embedder=_MockEmbedder(),
         )
         if indexer.count() == 0:
             click.echo(

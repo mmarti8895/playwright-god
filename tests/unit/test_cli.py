@@ -408,6 +408,8 @@ class TestGenerateCommand:
             or "from '@playwright/test'" in result.output
             or 'from "@playwright/test"' in result.output
         )
+        # must NOT produce a Markdown plan
+        assert "# Playwright Test Plan" not in result.output
 
     def test_generate_memory_map_invalid_file_warns(self, runner, tmp_path):
         """generate should warn but continue when the memory map JSON is invalid."""

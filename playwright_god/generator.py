@@ -228,14 +228,19 @@ class GeminiClient(LLMClient):
             model_name=model,
             system_instruction=PlaywrightTestGenerator.SYSTEM_PROMPT,
         )
+        # Cache models keyed by system-prompt string to avoid repeated
+        # GenerativeModel instantiation across calls with the same instruction.
+        self._model_cache: dict[str, "genai.GenerativeModel"] = {}  # type: ignore[name-defined]
 
     def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         if system_prompt is not None:
-            import google.generativeai as genai
-            client = genai.GenerativeModel(
-                model_name=self._model_name,
-                system_instruction=system_prompt,
-            )
+            if system_prompt not in self._model_cache:
+                import google.generativeai as genai
+                self._model_cache[system_prompt] = genai.GenerativeModel(
+                    model_name=self._model_name,
+                    system_instruction=system_prompt,
+                )
+            client = self._model_cache[system_prompt]
         else:
             client = self._client
         response = client.generate_content(prompt)

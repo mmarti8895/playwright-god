@@ -82,7 +82,7 @@ def cli() -> None:
     "--memory-map",
     "-m",
     default=None,
-    type=click.Path(dir_okay=False, writable=True),
+    type=click.Path(dir_okay=False),
     help=(
         "Write a JSON memory map of the indexed chunks to this file.  "
         "The map can later be passed to `generate --memory-map` or `plan` "

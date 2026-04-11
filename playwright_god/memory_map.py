@@ -155,9 +155,16 @@ def format_memory_map_for_prompt(memory_map: dict) -> str:
     _files = memory_map.get("files", [])
     files: list = _files if isinstance(_files, list) else []
 
+    valid_languages: list[tuple[str, int]] = []
+    for lang, count in languages.items():
+        try:
+            valid_languages.append((lang, int(count)))
+        except (TypeError, ValueError):
+            continue
+
     lang_summary = ", ".join(
         f"{lang} ({count})"
-        for lang, count in sorted(languages.items(), key=lambda kv: -kv[1])
+        for lang, count in sorted(valid_languages, key=lambda kv: -kv[1])
     )
 
     lines: list[str] = [

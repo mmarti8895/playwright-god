@@ -481,7 +481,7 @@ def generate(
     "--output",
     "-o",
     default=None,
-    type=click.Path(),
+    type=click.Path(dir_okay=False),
     help="Write the test plan to this file (default: stdout).",
 )
 @click.option(

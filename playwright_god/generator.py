@@ -709,6 +709,11 @@ class PlaywrightTestGenerator:
             A Markdown document listing suggested Playwright test scenarios.
         """
         parts: list[str] = [
+            # Embed the planning role instructions directly in the prompt so
+            # the LLM is guided toward a plan rather than TypeScript code.
+            # This avoids mutating any class-level state and is thread-safe.
+            PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT,
+            "",
             "Below is a memory map of the indexed repository.  "
             "Use it to propose a comprehensive Playwright test plan.",
             "",
@@ -729,15 +734,7 @@ class PlaywrightTestGenerator:
         ]
 
         prompt = "\n".join(parts)
-
-        # Temporarily swap the system prompt to the planning variant so the
-        # LLM responds with a plan rather than TypeScript code.
-        original_system = PlaywrightTestGenerator.SYSTEM_PROMPT
-        try:
-            PlaywrightTestGenerator.SYSTEM_PROMPT = PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT
-            return self.llm_client.complete(prompt)
-        finally:
-            PlaywrightTestGenerator.SYSTEM_PROMPT = original_system
+        return self.llm_client.complete(prompt)
 
     @staticmethod
     def _redact_secrets(code: str) -> str:

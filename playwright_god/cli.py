@@ -578,22 +578,23 @@ def plan(
             )
             sys.exit(1)
 
-        # Reconstruct chunks from the stored metadata so we can build a map.
-        raw = indexer._collection.get(include=["metadatas", "documents"])
+        # Reconstruct chunks from stored ids/metadata only; full document
+        # content is not needed to build the memory map and can be expensive
+        # to load for large repositories.
+        raw = indexer._collection.get(include=["metadatas"])
         from .chunker import Chunk as _Chunk
         chunks = [
             _Chunk(
                 file_path=meta.get("file_path", ""),
-                content=doc,
+                content="",
                 start_line=int(meta.get("start_line", 0)),
                 end_line=int(meta.get("end_line", 0)),
                 language=meta.get("language", "unknown"),
                 chunk_id=chunk_id,
             )
-            for chunk_id, meta, doc in zip(
+            for chunk_id, meta in zip(
                 raw.get("ids") or [],
                 raw.get("metadatas") or [],
-                raw.get("documents") or [],
             )
         ]
         map_data = build_memory_map(chunks)

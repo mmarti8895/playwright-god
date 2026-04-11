@@ -1,6 +1,8 @@
 import json
 from tests.helpers.page_models import EventsPage
 
+_FAKE_ORIGIN = "http://localhost.test"
+
 
 def test_create_event(page, sample_event_payload):
         # Provide a minimal events list UI and intercept API create/list calls
@@ -21,8 +23,10 @@ def test_create_event(page, sample_event_payload):
         def get_events(route, request):
                 route.fulfill(status=200, body=json.dumps([created]), headers={"Content-Type": "application/json"})
 
+        # Serve the shell from a routed URL so relative fetch() calls have a valid origin.
+        page.route(f"{_FAKE_ORIGIN}/", lambda r, _: r.fulfill(status=200, body=shell, headers={"Content-Type": "text/html"}))
         page.route("**/api/events", lambda r, req: post_events(r, req) if req.method == 'POST' else get_events(r, req))
-        page.set_content(shell)
+        page.goto(f"{_FAKE_ORIGIN}/")
 
         # simulate create event flow
         page.click('#create')

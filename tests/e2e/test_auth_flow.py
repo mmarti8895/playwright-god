@@ -8,12 +8,12 @@ def test_signup_and_signin(page):
         html = """
         <html><body>
             <main>
-                <form id="signup">
+                <form id="signup" onsubmit="return false">
                     <input name="email" />
                     <input name="password" />
                     <button type="submit">Sign up</button>
                 </form>
-                <form id="login">
+                <form id="login" onsubmit="return false">
                     <input name="email" />
                     <input name="password" />
                     <button type="submit">Sign in</button>

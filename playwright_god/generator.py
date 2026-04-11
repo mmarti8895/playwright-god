@@ -87,8 +87,17 @@ class LLMClient(ABC):
     """Abstract base class for LLM completion backends."""
 
     @abstractmethod
-    def complete(self, prompt: str) -> str:
-        """Send *prompt* to the LLM and return its text response."""
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Send *prompt* to the LLM and return its text response.
+
+        Parameters
+        ----------
+        prompt:
+            The user-facing prompt.
+        system_prompt:
+            Optional system instruction override.  When *None*, each client
+            falls back to :attr:`PlaywrightTestGenerator.SYSTEM_PROMPT`.
+        """
 
 
 class OpenAIClient(LLMClient):
@@ -123,13 +132,14 @@ class OpenAIClient(LLMClient):
         )
         self.model = model
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
         response = self._client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": PlaywrightTestGenerator.SYSTEM_PROMPT,
+                    "content": sys_msg,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -174,11 +184,12 @@ class AnthropicClient(LLMClient):
         self.model = model
         self.max_tokens = max_tokens
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
         message = self._client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
-            system=PlaywrightTestGenerator.SYSTEM_PROMPT,
+            system=sys_msg,
             messages=[{"role": "user", "content": prompt}],
         )
         return message.content[0].text
@@ -212,13 +223,27 @@ class GeminiClient(LLMClient):
         import google.generativeai as genai
 
         genai.configure(api_key=api_key or os.environ.get("GOOGLE_API_KEY", ""))
+        self._model_name = model
         self._client = genai.GenerativeModel(
             model_name=model,
             system_instruction=PlaywrightTestGenerator.SYSTEM_PROMPT,
         )
+        # Cache models keyed by system-prompt string to avoid repeated
+        # GenerativeModel instantiation across calls with the same instruction.
+        self._model_cache: dict[str, "genai.GenerativeModel"] = {}  # type: ignore[name-defined]
 
-    def complete(self, prompt: str) -> str:
-        response = self._client.generate_content(prompt)
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        if system_prompt is not None:
+            if system_prompt not in self._model_cache:
+                import google.generativeai as genai
+                self._model_cache[system_prompt] = genai.GenerativeModel(
+                    model_name=self._model_name,
+                    system_instruction=system_prompt,
+                )
+            client = self._model_cache[system_prompt]
+        else:
+            client = self._client
+        response = client.generate_content(prompt)
         return response.text
 
 
@@ -249,15 +274,16 @@ class OllamaClient(LLMClient):
         self.model = model
         self.base_url = base_url.rstrip("/")
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         import requests
 
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
         payload = {
             "model": self.model,
             "messages": [
                 {
                     "role": "system",
-                    "content": PlaywrightTestGenerator.SYSTEM_PROMPT,
+                    "content": sys_msg,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -289,8 +315,15 @@ class TemplateLLMClient(LLMClient):
         }
     )
 
-    def complete(self, prompt: str) -> str:  # noqa: PLR0914
-        """Parse *prompt* and return a template Playwright test."""
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:  # noqa: PLR0914
+        """Parse *prompt* and return a template Playwright test or test plan.
+
+        The *system_prompt* parameter is accepted for API compatibility but is
+        not used by the offline template engine (it detects the task type from
+        the prompt content instead).
+        """
+        if self._is_plan_prompt(prompt):
+            return self._generate_plan(prompt)
         description = self._extract_description(prompt)
         urls = self._extract_urls(prompt)
         selectors = self._extract_selectors(prompt)
@@ -392,6 +425,71 @@ class TemplateLLMClient(LLMClient):
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _is_plan_prompt(prompt: str) -> bool:
+        """Return True only for an explicit test-plan request (not test code generation)."""
+        lower = prompt.lower()
+        return "generate a markdown test plan" in lower
+
+    @staticmethod
+    def _generate_plan(prompt: str) -> str:
+        """Produce a template Markdown test plan from the memory map in *prompt*."""
+        # Extract file paths from the memory map section of the prompt
+        file_paths = re.findall(r"^(\S+\.(?:ts|tsx|js|jsx|py|html|vue|svelte))\s+\[", prompt, re.MULTILINE)
+
+        # Extract a focus hint if present
+        focus_match = re.search(r"Focus area:\s*(.+)", prompt, re.IGNORECASE)
+        focus = focus_match.group(1).strip() if focus_match else None
+
+        lines = [
+            "# Playwright Test Plan",
+            "",
+            "> Generated by playwright-god (offline template mode).",
+            "> Review and expand each scenario before running.",
+            "",
+        ]
+
+        if focus:
+            lines += [f"**Focus area:** {focus}", ""]
+
+        if file_paths:
+            lines += [
+                "## Suggested test scenarios",
+                "",
+            ]
+            for path in file_paths[:10]:
+                name = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                lines += [
+                    f"### `{path}`",
+                    "",
+                    f"- [ ] `{name}` renders without errors",
+                    f"- [ ] `{name}` interactive elements are accessible",
+                    f"- [ ] `{name}` handles edge-case inputs gracefully",
+                    "",
+                ]
+        else:
+            lines += [
+                "## Suggested test scenarios",
+                "",
+                "- [ ] Home page loads and key elements are visible",
+                "- [ ] Navigation links route to the correct pages",
+                "- [ ] Forms validate input and display error messages",
+                "- [ ] Authenticated routes redirect unauthenticated users",
+                "- [ ] API error states are handled gracefully",
+                "",
+            ]
+
+        lines += [
+            "## General cross-cutting scenarios",
+            "",
+            "- [ ] All pages pass basic accessibility checks (WCAG AA)",
+            "- [ ] No uncaught JavaScript errors on page load",
+            "- [ ] Responsive layout renders correctly at mobile (375 px) and desktop (1280 px)",
+            "",
+        ]
+
+        return "\n".join(lines)
+
+    @staticmethod
     def _extract_description(prompt: str) -> str:
         m = re.search(r"Description:\s*(.+?)(?:\n|Context:|$)", prompt, re.IGNORECASE | re.DOTALL)
         if m:
@@ -486,6 +584,22 @@ class PlaywrightTestGenerator:
     n_context:
         Default number of context chunks to retrieve per query.
     """
+
+    PLAN_SYSTEM_PROMPT = textwrap.dedent(
+        """\
+        You are an expert Playwright test engineer and QA architect.
+        Your task is to analyse a repository's code structure and propose a
+        comprehensive Playwright end-to-end test plan.
+
+        Guidelines:
+        - Group suggested tests by feature area or page/route
+        - For each area propose 2-5 specific, actionable test scenarios
+        - Name each scenario in plain English (e.g. "User can log in with valid credentials")
+        - Note any selectors, routes, or API endpoints the tests should cover
+        - Flag areas that may require special setup (auth state, mocked APIs, etc.)
+        - Output a clean Markdown document — no TypeScript code
+        """
+    )
 
     SYSTEM_PROMPT = textwrap.dedent(
         """\
@@ -603,6 +717,56 @@ class PlaywrightTestGenerator:
             result = self._redact_secrets(result)
 
         return result
+
+    def plan(
+        self,
+        memory_map_text: str,
+        focus: str | None = None,
+    ) -> str:
+        """Generate a Markdown test plan from a formatted memory map.
+
+        Parameters
+        ----------
+        memory_map_text:
+            The string produced by
+            :func:`~playwright_god.memory_map.format_memory_map_for_prompt`.
+        focus:
+            Optional free-text hint to narrow the plan to a specific area
+            (e.g. ``"authentication flows"``).
+
+        Returns
+        -------
+        str
+            A Markdown document listing suggested Playwright test scenarios.
+        """
+        parts: list[str] = [
+            "Below is a memory map of the indexed repository.  "
+            "Use it to propose a comprehensive Playwright test plan.",
+            "",
+            memory_map_text,
+            "",
+            "=" * 60,
+        ]
+
+        if focus:
+            parts += [
+                f"Focus area: {focus}",
+                "",
+            ]
+
+        parts += [
+            "Generate a Markdown test plan.  For each feature area list "
+            "specific, actionable test scenarios in plain English.",
+        ]
+
+        prompt = "\n".join(parts)
+        # Pass PLAN_SYSTEM_PROMPT as the system instruction override so all
+        # LLM providers (OpenAI, Anthropic, Gemini, Ollama) receive the QA-
+        # architect role instead of the test-engineer role, and reliably
+        # produce Markdown rather than TypeScript code.
+        return self.llm_client.complete(
+            prompt, system_prompt=PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT
+        )
 
     @staticmethod
     def _redact_secrets(code: str) -> str:

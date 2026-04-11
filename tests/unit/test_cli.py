@@ -435,7 +435,7 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "Warning" in result.output
+        assert "Warning" in result.stderr
 
 
 class TestIndexMemoryMapFlag:

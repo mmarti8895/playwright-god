@@ -395,9 +395,9 @@ class TemplateLLMClient(LLMClient):
 
     @staticmethod
     def _is_plan_prompt(prompt: str) -> bool:
-        """Return True when the prompt is asking for a test plan (not test code)."""
+        """Return True only for an explicit test-plan request (not test code generation)."""
         lower = prompt.lower()
-        return "generate a markdown test plan" in lower or "memory map" in lower
+        return "generate a markdown test plan" in lower
 
     @staticmethod
     def _generate_plan(prompt: str) -> str:

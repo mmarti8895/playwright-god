@@ -402,6 +402,11 @@ class TestGenerateCommand:
 
         assert result.exit_code == 0
         assert "Memory map loaded" in result.output
+        assert (
+            "test.describe(" in result.output
+            or "from '@playwright/test'" in result.output
+            or 'from "@playwright/test"' in result.output
+        )
 
     def test_generate_memory_map_invalid_file_warns(self, runner, tmp_path):
         """generate should warn but continue when the memory map JSON is invalid."""

@@ -20,6 +20,12 @@ from .generator import (
     TemplateLLMClient,
 )
 from .indexer import RepositoryIndexer
+from .memory_map import (
+    build_memory_map,
+    format_memory_map_for_prompt,
+    load_memory_map,
+    save_memory_map,
+)
 
 
 @click.group()
@@ -73,6 +79,17 @@ def cli() -> None:
     ),
 )
 @click.option(
+    "--memory-map",
+    "-m",
+    default=None,
+    type=click.Path(),
+    help=(
+        "Write a JSON memory map of the indexed chunks to this file.  "
+        "The map can later be passed to `generate --memory-map` or `plan` "
+        "to give the AI a concise overview of the codebase structure."
+    ),
+)
+@click.option(
     "--mock-embedder",
     is_flag=True,
     default=False,
@@ -86,6 +103,7 @@ def index(
     chunk_size: int,
     overlap: int,
     extra_files: tuple[str, ...],
+    memory_map: str | None,
     mock_embedder: bool,
 ) -> None:
     """Crawl REPO_PATH and build a vector index for test generation.
@@ -142,6 +160,12 @@ def index(
     )
     indexer.add_chunks(chunks)
     click.echo(f"  Index saved to: {persist_dir!r}  ({indexer.count()} vectors)")
+
+    if memory_map:
+        map_data = build_memory_map(chunks)
+        save_memory_map(map_data, memory_map)
+        click.echo(f"  Memory map saved to: {memory_map!r}")
+
     click.echo("Done.")
 
 
@@ -253,6 +277,17 @@ def index(
     ),
 )
 @click.option(
+    "--memory-map",
+    "-m",
+    default=None,
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help=(
+        "Path to a memory map JSON file (produced by `index --memory-map`).  "
+        "Its structured file/chunk inventory is injected into the prompt so "
+        "the AI understands the full scope of the indexed codebase."
+    ),
+)
+@click.option(
     "--mock-embedder",
     is_flag=True,
     default=False,
@@ -273,6 +308,7 @@ def generate(
     auth_config: str | None,
     env_file: str | None,
     redact_secrets: bool,
+    memory_map: str | None,
     mock_embedder: bool,
 ) -> None:
     """Generate a Playwright test for the given DESCRIPTION.
@@ -340,8 +376,16 @@ def generate(
         )
         llm_client = TemplateLLMClient()
 
-    # Build extra_context from --auth-config and --env-file
+    # Build extra_context from --memory-map, --auth-config, and --env-file
     extra_parts: list[str] = []
+
+    if memory_map:
+        try:
+            map_data = load_memory_map(memory_map)
+            extra_parts.append(format_memory_map_for_prompt(map_data))
+            click.echo(f"Memory map loaded from: {memory_map!r}", err=True)
+        except (FileNotFoundError, ValueError) as exc:
+            click.echo(f"Warning: could not load --memory-map {memory_map!r}: {exc}", err=True)
 
     if auth_config:
         try:
@@ -395,6 +439,232 @@ def generate(
         click.echo(f"Test written to: {output}", err=True)
     else:
         click.echo(test_code)
+
+
+@cli.command()
+@click.option(
+    "--memory-map",
+    "-m",
+    default=None,
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help=(
+        "Path to a memory map JSON file (produced by `index --memory-map`).  "
+        "Required unless --persist-dir contains an indexed collection."
+    ),
+)
+@click.option(
+    "--persist-dir",
+    "-d",
+    default=".playwright_god_index",
+    show_default=True,
+    help=(
+        "Directory with the persisted vector index.  Used to build an "
+        "on-the-fly memory map when --memory-map is not provided."
+    ),
+)
+@click.option(
+    "--collection",
+    "-c",
+    default="repo",
+    show_default=True,
+    help="ChromaDB collection name (used when building the map from the index).",
+)
+@click.option(
+    "--focus",
+    default=None,
+    help=(
+        "Optional free-text hint to narrow the plan to a specific area "
+        "(e.g. 'authentication flows' or 'checkout process')."
+    ),
+)
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    type=click.Path(),
+    help="Write the test plan to this file (default: stdout).",
+)
+@click.option(
+    "--provider",
+    default=None,
+    type=click.Choice(
+        ["openai", "anthropic", "gemini", "ollama", "template"],
+        case_sensitive=False,
+    ),
+    help=(
+        "LLM provider to use.  Auto-detected from environment variables when "
+        "not set.  Falls back to the offline template generator."
+    ),
+)
+@click.option(
+    "--model",
+    default=None,
+    help="Model name to use with the selected provider.",
+)
+@click.option(
+    "--api-key",
+    default=None,
+    help="API key for the selected provider (overrides the environment variable).",
+)
+@click.option(
+    "--ollama-url",
+    default="http://localhost:11434",
+    show_default=True,
+    help="Base URL of the Ollama server (used only when --provider=ollama).",
+)
+@click.option(
+    "--mock-embedder",
+    is_flag=True,
+    default=False,
+    hidden=True,
+    help="Use the deterministic mock embedder (for testing without network access).",
+)
+def plan(
+    memory_map: str | None,
+    persist_dir: str,
+    collection: str,
+    focus: str | None,
+    output: str | None,
+    provider: str | None,
+    model: str | None,
+    api_key: str | None,
+    ollama_url: str,
+    mock_embedder: bool,
+) -> None:
+    """Generate an AI-powered Playwright test plan from the indexed codebase.
+
+    \b
+    The plan command analyses the memory map of the indexed repository and
+    asks the AI to suggest comprehensive test scenarios grouped by feature
+    area.  The result is a Markdown document that can guide manual or
+    automated test authoring.
+
+    \b
+    Typical workflow:
+      playwright-god index . --memory-map .playwright_god_index/memory_map.json
+      playwright-god plan   --memory-map .playwright_god_index/memory_map.json
+      playwright-god plan   --memory-map ... --focus "authentication" -o plan.md
+    """
+    # ------------------------------------------------------------------
+    # Resolve memory map
+    # ------------------------------------------------------------------
+    map_data: dict | None = None
+
+    if memory_map:
+        try:
+            map_data = load_memory_map(memory_map)
+            click.echo(f"Memory map loaded from: {memory_map!r}", err=True)
+        except (FileNotFoundError, ValueError) as exc:
+            click.echo(f"Error: {exc}", err=True)
+            sys.exit(1)
+    else:
+        # Fall back to building the map on-the-fly from the index.
+        click.echo(
+            f"No --memory-map provided; building from index at {persist_dir!r} …",
+            err=True,
+        )
+        from .embedder import MockEmbedder as _MockEmbedder
+        embedder = _MockEmbedder() if mock_embedder else DefaultEmbedder()
+        indexer = RepositoryIndexer(
+            collection_name=collection,
+            persist_dir=persist_dir,
+            embedder=embedder,
+        )
+        if indexer.count() == 0:
+            click.echo(
+                f"Error: index at {persist_dir!r} is empty or does not exist.  "
+                "Run `playwright-god index <repo-path>` first.",
+                err=True,
+            )
+            sys.exit(1)
+
+        # Reconstruct chunks from the stored metadata so we can build a map.
+        raw = indexer._collection.get(include=["metadatas", "documents"])
+        from .chunker import Chunk as _Chunk
+        chunks = [
+            _Chunk(
+                file_path=meta.get("file_path", ""),
+                content=doc,
+                start_line=int(meta.get("start_line", 0)),
+                end_line=int(meta.get("end_line", 0)),
+                language=meta.get("language", "unknown"),
+                chunk_id=chunk_id,
+            )
+            for chunk_id, meta, doc in zip(
+                raw.get("ids") or [],
+                raw.get("metadatas") or [],
+                raw.get("documents") or [],
+            )
+        ]
+        map_data = build_memory_map(chunks)
+        click.echo(
+            f"  Built memory map: {map_data['total_files']} files, "
+            f"{map_data['total_chunks']} chunks",
+            err=True,
+        )
+
+    memory_map_text = format_memory_map_for_prompt(map_data)
+
+    # ------------------------------------------------------------------
+    # Resolve LLM provider
+    # ------------------------------------------------------------------
+    if provider is None:
+        if api_key or os.environ.get("OPENAI_API_KEY"):
+            provider = "openai"
+        elif os.environ.get("ANTHROPIC_API_KEY"):
+            provider = "anthropic"
+        elif os.environ.get("GOOGLE_API_KEY"):
+            provider = "gemini"
+        else:
+            provider = "template"
+
+    llm_client: OpenAIClient | AnthropicClient | GeminiClient | OllamaClient | TemplateLLMClient
+    if provider == "openai":
+        resolved_model = model or "gpt-4o"
+        click.echo(f"Using OpenAI model: {resolved_model}", err=True)
+        llm_client = OpenAIClient(
+            api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
+            model=resolved_model,
+        )
+    elif provider == "anthropic":
+        resolved_model = model or "claude-3-5-sonnet-20241022"
+        click.echo(f"Using Anthropic model: {resolved_model}", err=True)
+        llm_client = AnthropicClient(
+            api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""),
+            model=resolved_model,
+        )
+    elif provider == "gemini":
+        resolved_model = model or "gemini-1.5-pro"
+        click.echo(f"Using Google Gemini model: {resolved_model}", err=True)
+        llm_client = GeminiClient(
+            api_key=api_key or os.environ.get("GOOGLE_API_KEY", ""),
+            model=resolved_model,
+        )
+    elif provider == "ollama":
+        resolved_model = model or "llama3"
+        click.echo(f"Using Ollama model: {resolved_model} at {ollama_url}", err=True)
+        llm_client = OllamaClient(model=resolved_model, base_url=ollama_url)
+    else:
+        click.echo(
+            "No LLM provider detected – using offline template planner.",
+            err=True,
+        )
+        llm_client = TemplateLLMClient()
+
+    generator = PlaywrightTestGenerator(llm_client=llm_client)
+
+    click.echo("Generating test plan …", err=True)
+    if focus:
+        click.echo(f"Focus: {focus}", err=True)
+
+    plan_text = generator.plan(memory_map_text, focus=focus)
+
+    if output:
+        with open(output, "w", encoding="utf-8") as fh:
+            fh.write(plan_text)
+        click.echo(f"Test plan written to: {output}", err=True)
+    else:
+        click.echo(plan_text)
 
 
 def main() -> None:

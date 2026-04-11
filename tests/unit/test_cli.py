@@ -361,3 +361,259 @@ class TestGenerateCommand:
             ["generate", "login flow", "-d", persist, "--provider", "unknown_llm"],
         )
         assert result.exit_code != 0
+
+    def test_generate_with_memory_map(self, runner, tmp_path):
+        """generate should load and inject memory map context when --memory-map is given."""
+        import json
+        persist = str(tmp_path / "idx")
+        map_file = str(tmp_path / "map.json")
+        map_data = {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "total_files": 1,
+            "total_chunks": 1,
+            "languages": {"typescript": 1},
+            "files": [
+                {
+                    "path": "src/app.ts",
+                    "language": "typescript",
+                    "chunks": [{"chunk_id": "abc", "start_line": 1, "end_line": 80}],
+                }
+            ],
+        }
+        with open(map_file, "w") as f:
+            json.dump(map_data, f)
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            os.environ.pop("OPENAI_API_KEY", None)
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "test something",
+                    "-d", persist,
+                    "--provider", "template",
+                    "--memory-map", map_file,
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Memory map loaded" in result.output
+
+    def test_generate_memory_map_invalid_file_warns(self, runner, tmp_path):
+        """generate should warn but continue when the memory map JSON is invalid."""
+        persist = str(tmp_path / "idx")
+        bad_map = tmp_path / "bad.json"
+        bad_map.write_text("not-json", encoding="utf-8")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            os.environ.pop("OPENAI_API_KEY", None)
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "test something",
+                    "-d", persist,
+                    "--provider", "template",
+                    "--memory-map", str(bad_map),
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Warning" in result.output
+
+
+class TestIndexMemoryMapFlag:
+    def test_index_saves_memory_map(self, runner, sample_repo_path, tmp_path):
+        persist = str(tmp_path / "idx")
+        map_file = str(tmp_path / "map.json")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.build_memory_map") as MockBuildMap,
+            patch("playwright_god.cli.save_memory_map") as MockSaveMap,
+        ):
+            mock_emb = MagicMock()
+            MockEmb.return_value = mock_emb
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 5
+            MockIdx.return_value = mock_indexer
+            MockBuildMap.return_value = {"total_files": 2}
+
+            result = runner.invoke(
+                cli,
+                ["index", sample_repo_path, "-d", persist, "--memory-map", map_file],
+            )
+
+        assert result.exit_code == 0
+        MockBuildMap.assert_called_once()
+        MockSaveMap.assert_called_once()
+        assert "Memory map saved" in result.output
+
+    def test_index_no_memory_map_flag_skips_save(self, runner, sample_repo_path, tmp_path):
+        persist = str(tmp_path / "idx")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.save_memory_map") as MockSaveMap,
+        ):
+            mock_emb = MagicMock()
+            MockEmb.return_value = mock_emb
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 5
+            MockIdx.return_value = mock_indexer
+
+            result = runner.invoke(
+                cli,
+                ["index", sample_repo_path, "-d", persist],
+            )
+
+        assert result.exit_code == 0
+        MockSaveMap.assert_not_called()
+        assert "Memory map" not in result.output
+
+
+class TestPlanCommand:
+    def test_plan_help(self, runner):
+        result = runner.invoke(cli, ["plan", "--help"])
+        assert result.exit_code == 0
+        assert "memory-map" in result.output or "memory_map" in result.output.lower()
+
+    def test_plan_with_memory_map_file(self, runner, tmp_path):
+        import json
+        map_file = str(tmp_path / "map.json")
+        map_data = {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "total_files": 2,
+            "total_chunks": 3,
+            "languages": {"typescript": 2},
+            "files": [
+                {
+                    "path": "src/auth.ts",
+                    "language": "typescript",
+                    "chunks": [{"chunk_id": "a1", "start_line": 1, "end_line": 80}],
+                },
+                {
+                    "path": "src/login.ts",
+                    "language": "typescript",
+                    "chunks": [
+                        {"chunk_id": "b1", "start_line": 1, "end_line": 80},
+                        {"chunk_id": "b2", "start_line": 71, "end_line": 120},
+                    ],
+                },
+            ],
+        }
+        with open(map_file, "w") as f:
+            json.dump(map_data, f)
+
+        os.environ.pop("OPENAI_API_KEY", None)
+        result = runner.invoke(
+            cli,
+            ["plan", "--memory-map", map_file, "--provider", "template"],
+        )
+
+        assert result.exit_code == 0
+        # Template plan outputs Markdown
+        assert "Test Plan" in result.output or "test" in result.output.lower()
+
+    def test_plan_writes_output_file(self, runner, tmp_path):
+        import json
+        map_file = str(tmp_path / "map.json")
+        output_file = str(tmp_path / "plan.md")
+        map_data = {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "total_files": 1,
+            "total_chunks": 1,
+            "languages": {"python": 1},
+            "files": [
+                {
+                    "path": "app.py",
+                    "language": "python",
+                    "chunks": [{"chunk_id": "x1", "start_line": 1, "end_line": 50}],
+                }
+            ],
+        }
+        with open(map_file, "w") as f:
+            json.dump(map_data, f)
+
+        os.environ.pop("OPENAI_API_KEY", None)
+        result = runner.invoke(
+            cli,
+            ["plan", "--memory-map", map_file, "--provider", "template", "-o", output_file],
+        )
+
+        assert result.exit_code == 0
+        from pathlib import Path
+        assert Path(output_file).exists()
+        content = Path(output_file).read_text()
+        assert len(content) > 0
+
+    def test_plan_missing_memory_map_errors(self, runner, tmp_path):
+        """plan should exit with an error when the memory map file does not exist."""
+        result = runner.invoke(
+            cli,
+            ["plan", "--memory-map", str(tmp_path / "nonexistent.json")],
+        )
+        assert result.exit_code != 0
+
+    def test_plan_with_focus(self, runner, tmp_path):
+        import json
+        map_file = str(tmp_path / "map.json")
+        map_data = {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "total_files": 1,
+            "total_chunks": 1,
+            "languages": {"typescript": 1},
+            "files": [
+                {
+                    "path": "src/checkout.ts",
+                    "language": "typescript",
+                    "chunks": [{"chunk_id": "c1", "start_line": 1, "end_line": 80}],
+                }
+            ],
+        }
+        with open(map_file, "w") as f:
+            json.dump(map_data, f)
+
+        os.environ.pop("OPENAI_API_KEY", None)
+        result = runner.invoke(
+            cli,
+            ["plan", "--memory-map", map_file, "--provider", "template", "--focus", "checkout"],
+        )
+
+        assert result.exit_code == 0
+        assert "checkout" in result.output.lower()
+
+    def test_plan_without_memory_map_uses_index(self, runner, tmp_path):
+        """plan without --memory-map should fall back to building from the index."""
+        persist = str(tmp_path / "idx")
+        with patch("playwright_god.cli.RepositoryIndexer") as MockIdx:
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 2
+            mock_indexer._collection.get.return_value = {
+                "ids": ["c1", "c2"],
+                "metadatas": [
+                    {"file_path": "src/a.ts", "start_line": 1, "end_line": 80, "language": "typescript"},
+                    {"file_path": "src/b.ts", "start_line": 1, "end_line": 80, "language": "typescript"},
+                ],
+                "documents": ["content a", "content b"],
+            }
+            MockIdx.return_value = mock_indexer
+
+            os.environ.pop("OPENAI_API_KEY", None)
+            result = runner.invoke(
+                cli,
+                ["plan", "-d", persist, "--provider", "template"],
+            )
+
+        assert result.exit_code == 0
+

@@ -150,8 +150,10 @@ def format_memory_map_for_prompt(memory_map: dict) -> str:
     """
     total_files = memory_map.get("total_files", 0)
     total_chunks = memory_map.get("total_chunks", 0)
-    languages = memory_map.get("languages", {})
-    files = memory_map.get("files", [])
+    _languages = memory_map.get("languages", {})
+    languages: dict = _languages if isinstance(_languages, dict) else {}
+    _files = memory_map.get("files", [])
+    files: list = _files if isinstance(_files, list) else []
 
     lang_summary = ", ".join(
         f"{lang} ({count})"
@@ -170,6 +172,8 @@ def format_memory_map_for_prompt(memory_map: dict) -> str:
     ]
 
     for file_entry in files:
+        if not isinstance(file_entry, dict):
+            continue
         path = file_entry.get("path", "?")
         language = file_entry.get("language", "unknown")
         chunks = file_entry.get("chunks", [])

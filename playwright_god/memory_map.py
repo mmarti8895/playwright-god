@@ -173,7 +173,11 @@ def format_memory_map_for_prompt(memory_map: dict) -> str:
         path = file_entry.get("path", "?")
         language = file_entry.get("language", "unknown")
         chunks = file_entry.get("chunks", [])
-        range_parts = [f"{c['start_line']}-{c['end_line']}" for c in chunks]
+        range_parts = [
+            f"{c.get('start_line', '?')}-{c.get('end_line', '?')}"
+            for c in chunks
+            if isinstance(c, dict)
+        ]
         ranges = ", ".join(range_parts) if range_parts else "(no chunks)"
         lines.append(f"{path}  [{language}]")
         lines.append(f"  lines {ranges}")

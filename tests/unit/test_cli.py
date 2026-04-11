@@ -402,6 +402,7 @@ class TestGenerateCommand:
 
         assert result.exit_code == 0
         assert "Memory map loaded" in result.output
+        # generate should still produce TypeScript test code, not a Markdown plan
         assert (
             "test.describe(" in result.output
             or "from '@playwright/test'" in result.output
@@ -610,7 +611,6 @@ class TestPlanCommand:
                     {"file_path": "src/a.ts", "start_line": 1, "end_line": 80, "language": "typescript"},
                     {"file_path": "src/b.ts", "start_line": 1, "end_line": 80, "language": "typescript"},
                 ],
-                "documents": ["content a", "content b"],
             }
             MockIdx.return_value = mock_indexer
 
@@ -621,4 +621,6 @@ class TestPlanCommand:
             )
 
         assert result.exit_code == 0
+        # Verify only metadatas (not documents) were requested
+        mock_indexer._collection.get.assert_called_once_with(include=["metadatas"])
 

@@ -196,3 +196,40 @@ class TestFormatMemoryMapForPrompt:
         ts_pos = result.index("typescript")
         py_pos = result.index("python")
         assert ts_pos < py_pos  # typescript (2) appears before python (1)
+
+    def test_malformed_chunk_missing_line_keys_does_not_crash(self):
+        """format_memory_map_for_prompt should not raise for chunks missing line keys."""
+        malformed_map = {
+            "total_files": 1,
+            "total_chunks": 1,
+            "languages": {"typescript": 1},
+            "files": [
+                {
+                    "path": "src/app.ts",
+                    "language": "typescript",
+                    "chunks": [{"chunk_id": "x1"}],  # no start_line / end_line
+                }
+            ],
+        }
+        result = format_memory_map_for_prompt(malformed_map)
+        assert "src/app.ts" in result
+        # Missing keys fall back to "?" placeholder
+        assert "?-?" in result
+
+    def test_malformed_chunk_non_dict_skipped(self):
+        """Non-dict chunk entries are skipped gracefully."""
+        malformed_map = {
+            "total_files": 1,
+            "total_chunks": 1,
+            "languages": {"typescript": 1},
+            "files": [
+                {
+                    "path": "src/app.ts",
+                    "language": "typescript",
+                    "chunks": ["not-a-dict"],
+                }
+            ],
+        }
+        result = format_memory_map_for_prompt(malformed_map)
+        assert "src/app.ts" in result
+        assert "(no chunks)" in result

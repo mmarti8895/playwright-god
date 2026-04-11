@@ -87,8 +87,17 @@ class LLMClient(ABC):
     """Abstract base class for LLM completion backends."""
 
     @abstractmethod
-    def complete(self, prompt: str) -> str:
-        """Send *prompt* to the LLM and return its text response."""
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Send *prompt* to the LLM and return its text response.
+
+        Parameters
+        ----------
+        prompt:
+            The user-facing prompt.
+        system_prompt:
+            Optional system instruction override.  When *None*, each client
+            falls back to :attr:`PlaywrightTestGenerator.SYSTEM_PROMPT`.
+        """
 
 
 class OpenAIClient(LLMClient):
@@ -123,13 +132,14 @@ class OpenAIClient(LLMClient):
         )
         self.model = model
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
         response = self._client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": PlaywrightTestGenerator.SYSTEM_PROMPT,
+                    "content": sys_msg,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -174,11 +184,12 @@ class AnthropicClient(LLMClient):
         self.model = model
         self.max_tokens = max_tokens
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
         message = self._client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
-            system=PlaywrightTestGenerator.SYSTEM_PROMPT,
+            system=sys_msg,
             messages=[{"role": "user", "content": prompt}],
         )
         return message.content[0].text
@@ -212,13 +223,22 @@ class GeminiClient(LLMClient):
         import google.generativeai as genai
 
         genai.configure(api_key=api_key or os.environ.get("GOOGLE_API_KEY", ""))
+        self._model_name = model
         self._client = genai.GenerativeModel(
             model_name=model,
             system_instruction=PlaywrightTestGenerator.SYSTEM_PROMPT,
         )
 
-    def complete(self, prompt: str) -> str:
-        response = self._client.generate_content(prompt)
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        if system_prompt is not None:
+            import google.generativeai as genai
+            client = genai.GenerativeModel(
+                model_name=self._model_name,
+                system_instruction=system_prompt,
+            )
+        else:
+            client = self._client
+        response = client.generate_content(prompt)
         return response.text
 
 
@@ -249,15 +269,16 @@ class OllamaClient(LLMClient):
         self.model = model
         self.base_url = base_url.rstrip("/")
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         import requests
 
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
         payload = {
             "model": self.model,
             "messages": [
                 {
                     "role": "system",
-                    "content": PlaywrightTestGenerator.SYSTEM_PROMPT,
+                    "content": sys_msg,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -289,8 +310,13 @@ class TemplateLLMClient(LLMClient):
         }
     )
 
-    def complete(self, prompt: str) -> str:  # noqa: PLR0914
-        """Parse *prompt* and return a template Playwright test or test plan."""
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:  # noqa: PLR0914
+        """Parse *prompt* and return a template Playwright test or test plan.
+
+        The *system_prompt* parameter is accepted for API compatibility but is
+        not used by the offline template engine (it detects the task type from
+        the prompt content instead).
+        """
         if self._is_plan_prompt(prompt):
             return self._generate_plan(prompt)
         description = self._extract_description(prompt)
@@ -709,11 +735,6 @@ class PlaywrightTestGenerator:
             A Markdown document listing suggested Playwright test scenarios.
         """
         parts: list[str] = [
-            # Embed the planning role instructions directly in the prompt so
-            # the LLM is guided toward a plan rather than TypeScript code.
-            # This avoids mutating any class-level state and is thread-safe.
-            PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT,
-            "",
             "Below is a memory map of the indexed repository.  "
             "Use it to propose a comprehensive Playwright test plan.",
             "",
@@ -734,7 +755,13 @@ class PlaywrightTestGenerator:
         ]
 
         prompt = "\n".join(parts)
-        return self.llm_client.complete(prompt)
+        # Pass PLAN_SYSTEM_PROMPT as the system instruction override so all
+        # LLM providers (OpenAI, Anthropic, Gemini, Ollama) receive the QA-
+        # architect role instead of the test-engineer role, and reliably
+        # produce Markdown rather than TypeScript code.
+        return self.llm_client.complete(
+            prompt, system_prompt=PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT
+        )
 
     @staticmethod
     def _redact_secrets(code: str) -> str:

@@ -1,8 +1,11 @@
 """Playwright test generator using LLM + RAG context.
 
-Provides two LLM backends:
+Provides the following LLM backends:
 
 * :class:`OpenAIClient` – calls the OpenAI Chat Completions API.
+* :class:`AnthropicClient` – calls the Anthropic Claude API.
+* :class:`GeminiClient` – calls the Google Gemini API.
+* :class:`OllamaClient` – calls a locally running Ollama instance.
 * :class:`TemplateLLMClient` – offline fallback; produces a useful skeleton
   Playwright test from the retrieved context without any API calls.
 """
@@ -11,11 +14,68 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import textwrap
 from abc import ABC, abstractmethod
-from typing import Sequence
+from typing import Callable, Sequence
 
+from .auth_templates import get_auth_hint, get_template
 from .indexer import RepositoryIndexer, SearchResult
+
+# ---------------------------------------------------------------------------
+# Credential-sanitization patterns
+# ---------------------------------------------------------------------------
+
+# Matches common assignment / literal patterns that look like hardcoded secrets.
+# The replacement substitutes the matched value with a process.env reference.
+_SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # password = "..."  or  password: "..."
+    (
+        re.compile(
+            r"""(password\s*[=:]\s*)(['"])([^'"]{4,})(\2)""",
+            re.IGNORECASE,
+        ),
+        r"\1\2process.env.TEST_PASSWORD\2",
+    ),
+    # username = "..."  or  user = "..."
+    (
+        re.compile(
+            r"""((?:username|user)\s*[=:]\s*)(['"])([^'"]{4,})(\2)""",
+            re.IGNORECASE,
+        ),
+        r"\1\2process.env.TEST_USERNAME\2",
+    ),
+    # apiKey = "..."  or  api_key = "..."
+    (
+        re.compile(
+            r"""(api[_-]?key\s*[=:]\s*)(['"])([^'"]{8,})(\2)""",
+            re.IGNORECASE,
+        ),
+        r"\1\2process.env.API_KEY\2",
+    ),
+    # token = "..."  or  accessToken = "..."
+    (
+        re.compile(
+            r"""((?:access_?)?token\s*[=:]\s*)(['"])([^'"]{8,})(\2)""",
+            re.IGNORECASE,
+        ),
+        r"\1\2process.env.ACCESS_TOKEN\2",
+    ),
+    # secret = "..."
+    (
+        re.compile(
+            r"""(secret\s*[=:]\s*)(['"])([^'"]{4,})(\2)""",
+            re.IGNORECASE,
+        ),
+        r"\1\2process.env.SECRET\2",
+    ),
+]
+
+# Values that look like placeholders / env-var references — never redact these.
+_SAFE_VALUES: re.Pattern[str] = re.compile(
+    r"process\.env\.|<[A-Z_]+>|YOUR_|PLACEHOLDER|EXAMPLE|CHANGE_ME",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -27,8 +87,17 @@ class LLMClient(ABC):
     """Abstract base class for LLM completion backends."""
 
     @abstractmethod
-    def complete(self, prompt: str) -> str:
-        """Send *prompt* to the LLM and return its text response."""
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Send *prompt* to the LLM and return its text response.
+
+        Parameters
+        ----------
+        prompt:
+            The user-facing prompt.
+        system_prompt:
+            Optional system instruction override.  When *None*, each client
+            falls back to :attr:`PlaywrightTestGenerator.SYSTEM_PROMPT`.
+        """
 
 
 class OpenAIClient(LLMClient):
@@ -63,19 +132,170 @@ class OpenAIClient(LLMClient):
         )
         self.model = model
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
         response = self._client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": PlaywrightTestGenerator.SYSTEM_PROMPT,
+                    "content": sys_msg,
                 },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.2,
         )
         return response.choices[0].message.content or ""
+
+
+class AnthropicClient(LLMClient):
+    """Calls the Anthropic Claude API.
+
+    Parameters
+    ----------
+    api_key:
+        Anthropic API key.  Falls back to the ``ANTHROPIC_API_KEY``
+        environment variable if *None*.
+    model:
+        Model name (default ``claude-3-5-sonnet-20241022``).
+    max_tokens:
+        Maximum number of tokens to generate (default ``4096``).
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "claude-3-5-sonnet-20241022",
+        max_tokens: int = 4096,
+    ) -> None:
+        try:
+            import anthropic  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "anthropic is required for AnthropicClient. "
+                "Install it with: pip install anthropic"
+            ) from exc
+
+        import anthropic
+
+        self._client = anthropic.Anthropic(
+            api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        )
+        self.model = model
+        self.max_tokens = max_tokens
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
+        message = self._client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system=sys_msg,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text
+
+
+class GeminiClient(LLMClient):
+    """Calls the Google Gemini API.
+
+    Parameters
+    ----------
+    api_key:
+        Google API key.  Falls back to the ``GOOGLE_API_KEY`` environment
+        variable if *None*.
+    model:
+        Model name (default ``gemini-1.5-pro``).
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "gemini-1.5-pro",
+    ) -> None:
+        try:
+            import google.generativeai as genai  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "google-generativeai is required for GeminiClient. "
+                "Install it with: pip install google-generativeai"
+            ) from exc
+
+        import google.generativeai as genai
+
+        genai.configure(api_key=api_key or os.environ.get("GOOGLE_API_KEY", ""))
+        self._model_name = model
+        self._client = genai.GenerativeModel(
+            model_name=model,
+            system_instruction=PlaywrightTestGenerator.SYSTEM_PROMPT,
+        )
+        # Cache models keyed by system-prompt string to avoid repeated
+        # GenerativeModel instantiation across calls with the same instruction.
+        self._model_cache: dict[str, "genai.GenerativeModel"] = {}  # type: ignore[name-defined]
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        if system_prompt is not None:
+            if system_prompt not in self._model_cache:
+                import google.generativeai as genai
+                self._model_cache[system_prompt] = genai.GenerativeModel(
+                    model_name=self._model_name,
+                    system_instruction=system_prompt,
+                )
+            client = self._model_cache[system_prompt]
+        else:
+            client = self._client
+        response = client.generate_content(prompt)
+        return response.text
+
+
+class OllamaClient(LLMClient):
+    """Calls a locally running Ollama instance via its REST API.
+
+    Parameters
+    ----------
+    model:
+        Model name served by Ollama (default ``llama3``).
+    base_url:
+        Base URL of the Ollama server (default ``http://localhost:11434``).
+    """
+
+    def __init__(
+        self,
+        model: str = "llama3",
+        base_url: str = "http://localhost:11434",
+    ) -> None:
+        try:
+            import requests  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "requests is required for OllamaClient. "
+                "Install it with: pip install requests"
+            ) from exc
+
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        import requests
+
+        sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": sys_msg,
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "stream": False,
+        }
+        response = requests.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+            timeout=120,
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
 
 
 class TemplateLLMClient(LLMClient):
@@ -86,13 +306,30 @@ class TemplateLLMClient(LLMClient):
     will need human review but gives a concrete starting point.
     """
 
-    def complete(self, prompt: str) -> str:  # noqa: PLR0914
-        """Parse *prompt* and return a template Playwright test."""
+    # Keywords that signal the test should include log/audit assertions.
+    _LOG_KEYWORDS: frozenset[str] = frozenset(
+        {
+            "logging", "log", "audit", "audit trail", "audit log",
+            "console output", "console log", "error log", "pageerror",
+            "analytics", "telemetry", "splunk", "datadog",
+        }
+    )
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:  # noqa: PLR0914
+        """Parse *prompt* and return a template Playwright test or test plan.
+
+        The *system_prompt* parameter is accepted for API compatibility but is
+        not used by the offline template engine (it detects the task type from
+        the prompt content instead).
+        """
+        if self._is_plan_prompt(prompt):
+            return self._generate_plan(prompt)
         description = self._extract_description(prompt)
         urls = self._extract_urls(prompt)
         selectors = self._extract_selectors(prompt)
         text_content = self._extract_text_content(prompt)
         form_fields = self._extract_form_fields(prompt)
+        is_log_test = self._is_logging_description(description + " " + prompt)
 
         base_url = urls[0] if urls else "http://localhost:3000"
         test_name = self._slugify(description)
@@ -144,12 +381,113 @@ class TemplateLLMClient(LLMClient):
                 "",
             ]
 
+        # Log / audit assertion tests
+        if is_log_test:
+            lines += [
+                "  // ── Console log assertions ────────────────────────────────────",
+                "  test('captures expected console messages', async ({ page }) => {",
+                "    const messages: string[] = [];",
+                "    page.on('console', (msg) => messages.push(`[${msg.type()}] ${msg.text()}`));",
+                f"    await page.goto('{base_url}');",
+                "    // TODO: trigger the action that should emit a log, then assert:",
+                "    // expect(messages.some((m) => m.includes('expected message'))).toBe(true);",
+                "    expect(messages).toBeDefined();",
+                "  });",
+                "",
+                "  // ── No uncaught errors ────────────────────────────────────────",
+                "  test('has no uncaught JavaScript errors', async ({ page }) => {",
+                "    const errors: string[] = [];",
+                "    page.on('pageerror', (err) => errors.push(err.message));",
+                f"    await page.goto('{base_url}');",
+                "    expect(errors).toHaveLength(0);",
+                "  });",
+                "",
+                "  // ── Audit / logging API intercept ────────────────────────────",
+                "  test('sends an audit event to the log endpoint', async ({ page }) => {",
+                "    const logRequests: string[] = [];",
+                "    await page.route('**/api/audit**', async (route) => {",
+                "      logRequests.push(route.request().postData() ?? '');",
+                "      await route.continue();",
+                "    });",
+                f"    await page.goto('{base_url}');",
+                "    // TODO: trigger the auditable action, then assert:",
+                "    // expect(logRequests.length).toBeGreaterThan(0);",
+                "    // expect(logRequests[0]).toContain('expected-event');",
+                "  });",
+                "",
+            ]
+
         lines += ["});", ""]
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
     # Parsing helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_plan_prompt(prompt: str) -> bool:
+        """Return True only for an explicit test-plan request (not test code generation)."""
+        lower = prompt.lower()
+        return "generate a markdown test plan" in lower
+
+    @staticmethod
+    def _generate_plan(prompt: str) -> str:
+        """Produce a template Markdown test plan from the memory map in *prompt*."""
+        # Extract file paths from the memory map section of the prompt
+        file_paths = re.findall(r"^(\S+\.(?:ts|tsx|js|jsx|py|html|vue|svelte))\s+\[", prompt, re.MULTILINE)
+
+        # Extract a focus hint if present
+        focus_match = re.search(r"Focus area:\s*(.+)", prompt, re.IGNORECASE)
+        focus = focus_match.group(1).strip() if focus_match else None
+
+        lines = [
+            "# Playwright Test Plan",
+            "",
+            "> Generated by playwright-god (offline template mode).",
+            "> Review and expand each scenario before running.",
+            "",
+        ]
+
+        if focus:
+            lines += [f"**Focus area:** {focus}", ""]
+
+        if file_paths:
+            lines += [
+                "## Suggested test scenarios",
+                "",
+            ]
+            for path in file_paths[:10]:
+                name = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                lines += [
+                    f"### `{path}`",
+                    "",
+                    f"- [ ] `{name}` renders without errors",
+                    f"- [ ] `{name}` interactive elements are accessible",
+                    f"- [ ] `{name}` handles edge-case inputs gracefully",
+                    "",
+                ]
+        else:
+            lines += [
+                "## Suggested test scenarios",
+                "",
+                "- [ ] Home page loads and key elements are visible",
+                "- [ ] Navigation links route to the correct pages",
+                "- [ ] Forms validate input and display error messages",
+                "- [ ] Authenticated routes redirect unauthenticated users",
+                "- [ ] API error states are handled gracefully",
+                "",
+            ]
+
+        lines += [
+            "## General cross-cutting scenarios",
+            "",
+            "- [ ] All pages pass basic accessibility checks (WCAG AA)",
+            "- [ ] No uncaught JavaScript errors on page load",
+            "- [ ] Responsive layout renders correctly at mobile (375 px) and desktop (1280 px)",
+            "",
+        ]
+
+        return "\n".join(lines)
 
     @staticmethod
     def _extract_description(prompt: str) -> str:
@@ -219,6 +557,12 @@ class TemplateLLMClient(LLMClient):
     def _slugify(text: str) -> str:
         return re.sub(r"[^a-zA-Z0-9]+", " ", text).strip()
 
+    @classmethod
+    def _is_logging_description(cls, text: str) -> bool:
+        """Return ``True`` when *text* contains logging / audit-related keywords."""
+        lower = text.lower()
+        return any(kw in lower for kw in cls._LOG_KEYWORDS)
+
 
 # ---------------------------------------------------------------------------
 # Generator
@@ -241,6 +585,22 @@ class PlaywrightTestGenerator:
         Default number of context chunks to retrieve per query.
     """
 
+    PLAN_SYSTEM_PROMPT = textwrap.dedent(
+        """\
+        You are an expert Playwright test engineer and QA architect.
+        Your task is to analyse a repository's code structure and propose a
+        comprehensive Playwright end-to-end test plan.
+
+        Guidelines:
+        - Group suggested tests by feature area or page/route
+        - For each area propose 2-5 specific, actionable test scenarios
+        - Name each scenario in plain English (e.g. "User can log in with valid credentials")
+        - Note any selectors, routes, or API endpoints the tests should cover
+        - Flag areas that may require special setup (auth state, mocked APIs, etc.)
+        - Output a clean Markdown document — no TypeScript code
+        """
+    )
+
     SYSTEM_PROMPT = textwrap.dedent(
         """\
         You are an expert Playwright test engineer.
@@ -255,6 +615,24 @@ class PlaywrightTestGenerator:
         - Include meaningful assertions using expect()
         - Add a brief comment explaining each test's intent
         - Return only the TypeScript code, no markdown fences
+
+        Authentication guidelines:
+        - NEVER hardcode passwords, tokens, or API keys — always use process.env.TEST_USERNAME,
+          process.env.TEST_PASSWORD, or a dedicated env variable
+        - For SAML / OIDC SSO: use a global-setup.ts that completes the login flow once and
+          calls page.context().storageState({ path }) to persist the session; reference that
+          file in playwright.config.ts via storageState
+        - Use page.waitForURL() to handle multi-step SSO redirect chains (SP → IdP → callback)
+        - For NTLM / Kerberos (Active Directory): use httpCredentials on the browser context;
+          Playwright negotiates the NTLM handshake automatically
+        - For OIDC authorization-code flow: wait for the provider redirect, fill the login
+          form, wait for the callback URL, then capture storageState
+
+        Logging / audit trail guidelines:
+        - Attach page.on('console', ...) listeners before navigation to capture log messages
+        - Attach page.on('pageerror', ...) listeners and assert the resulting array is empty
+        - Use page.route() to intercept calls to logging/analytics/audit endpoints and assert
+          they receive the expected payload
         """
     )
 
@@ -272,6 +650,8 @@ class PlaywrightTestGenerator:
         self,
         description: str,
         extra_context: str | None = None,
+        auth_type: str | None = None,
+        redact_secrets: bool = True,
     ) -> str:
         """Generate a Playwright test for the given *description*.
 
@@ -283,6 +663,16 @@ class PlaywrightTestGenerator:
         extra_context:
             Any additional context to append to the prompt (e.g. a manual
             code snippet or notes).
+        auth_type:
+            Authentication mechanism used by the system under test.  When
+            provided the relevant auth hint and TypeScript template snippet are
+            injected into the prompt so the LLM produces correct auth code.
+            Accepted values: ``"saml"``, ``"ntlm"``, ``"oidc"``, ``"basic"``,
+            ``"logging"``, ``"none"`` (or ``None`` to skip).
+        redact_secrets:
+            When ``True`` (default) a post-generation sanitization pass
+            replaces patterns that look like hardcoded credentials with
+            ``process.env.*`` placeholders and prints a warning to stderr.
 
         Returns
         -------
@@ -293,8 +683,121 @@ class PlaywrightTestGenerator:
         if self.indexer is not None:
             context_chunks = self.indexer.search(description, n_results=self.n_context)
 
-        prompt = self._build_prompt(description, context_chunks, extra_context)
-        return self.llm_client.complete(prompt)
+        # Build auth-specific extra context to inject alongside any caller-
+        # supplied extra_context.
+        auth_extra: str | None = None
+        if auth_type and auth_type.lower() != "none":
+            parts: list[str] = []
+            hint = get_auth_hint(auth_type)
+            if hint:
+                parts.append(hint)
+            template = get_template(auth_type)
+            if template:
+                parts.append(
+                    "Reference TypeScript template:\n"
+                    "```typescript\n"
+                    + template
+                    + "```"
+                )
+            if parts:
+                auth_extra = "\n\n".join(parts)
+
+        combined_extra: str | None
+        if auth_extra and extra_context:
+            combined_extra = auth_extra + "\n\n" + extra_context
+        elif auth_extra:
+            combined_extra = auth_extra
+        else:
+            combined_extra = extra_context
+
+        prompt = self._build_prompt(description, context_chunks, combined_extra)
+        result = self.llm_client.complete(prompt)
+
+        if redact_secrets:
+            result = self._redact_secrets(result)
+
+        return result
+
+    def plan(
+        self,
+        memory_map_text: str,
+        focus: str | None = None,
+    ) -> str:
+        """Generate a Markdown test plan from a formatted memory map.
+
+        Parameters
+        ----------
+        memory_map_text:
+            The string produced by
+            :func:`~playwright_god.memory_map.format_memory_map_for_prompt`.
+        focus:
+            Optional free-text hint to narrow the plan to a specific area
+            (e.g. ``"authentication flows"``).
+
+        Returns
+        -------
+        str
+            A Markdown document listing suggested Playwright test scenarios.
+        """
+        parts: list[str] = [
+            "Below is a memory map of the indexed repository.  "
+            "Use it to propose a comprehensive Playwright test plan.",
+            "",
+            memory_map_text,
+            "",
+            "=" * 60,
+        ]
+
+        if focus:
+            parts += [
+                f"Focus area: {focus}",
+                "",
+            ]
+
+        parts += [
+            "Generate a Markdown test plan.  For each feature area list "
+            "specific, actionable test scenarios in plain English.",
+        ]
+
+        prompt = "\n".join(parts)
+        # Pass PLAN_SYSTEM_PROMPT as the system instruction override so all
+        # LLM providers (OpenAI, Anthropic, Gemini, Ollama) receive the QA-
+        # architect role instead of the test-engineer role, and reliably
+        # produce Markdown rather than TypeScript code.
+        return self.llm_client.complete(
+            prompt, system_prompt=PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT
+        )
+
+    @staticmethod
+    def _redact_secrets(code: str) -> str:
+        """Replace hardcoded credential literals with process.env.* references.
+
+        Patterns that already reference env vars, use placeholder text, or are
+        shorter than the minimum match length are left untouched.
+        """
+        redacted = False
+
+        def _make_replacer(replacement: str) -> Callable[[re.Match[str]], str]:
+            def _replace(m: re.Match[str]) -> str:
+                nonlocal redacted
+                value = m.group(3)
+                if _SAFE_VALUES.search(value):
+                    return m.group(0)
+                redacted = True
+                return m.expand(replacement)
+            return _replace
+
+        for pattern, replacement in _SECRET_PATTERNS:
+            code = pattern.sub(_make_replacer(replacement), code)
+
+        if redacted:
+            print(
+                "playwright-god: WARNING – hardcoded credentials were detected in the "
+                "generated output and replaced with process.env.* placeholders. "
+                "Store secrets in environment variables, never in test code.",
+                file=sys.stderr,
+            )
+        return code
 
     def _build_prompt(
         self,

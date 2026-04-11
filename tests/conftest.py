@@ -51,6 +51,12 @@ def simple_chunk(simple_file_info: FileInfo) -> Chunk:
 
 
 @pytest.fixture()
+def sample_event_payload() -> dict:
+    """A minimal event payload for E2E tests."""
+    return {"title": "Test Event", "description": "A test description", "date": "2026-01-01"}
+
+
+@pytest.fixture()
 def in_memory_indexer() -> RepositoryIndexer:
     """Return an in-memory RepositoryIndexer using the MockEmbedder.
 

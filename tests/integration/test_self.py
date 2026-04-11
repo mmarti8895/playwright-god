@@ -100,6 +100,7 @@ class TestSelfGenerate:
                 "playwright-god CLI: index a repository and generate a Playwright test",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
             ],
         )
@@ -117,6 +118,7 @@ class TestSelfGenerate:
                 "index command and generate command of the playwright-god CLI tool",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
             ],
         )
@@ -138,6 +140,7 @@ class TestSelfGenerate:
                 "crawler module that walks a repository directory tree",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
                 "-o", str(out_file),
             ],
@@ -157,6 +160,7 @@ class TestSelfGenerate:
                 "embedder and indexer modules used in the RAG pipeline",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
                 "--n-context", "5",
             ],

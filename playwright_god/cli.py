@@ -189,7 +189,7 @@ def index(
     "--output",
     "-o",
     default=None,
-    type=click.Path(),
+    type=click.Path(dir_okay=False),
     help="Write generated test to this file (default: stdout).",
 )
 @click.option(

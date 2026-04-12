@@ -109,6 +109,16 @@ class TestGenerateCommand:
         content = Path(output_file).read_text()
         assert len(content) > 0
 
+    def test_generate_rejects_directory_output_path(self, runner, tmp_path):
+        result = runner.invoke(
+            cli,
+            ["generate", "login form test", "-o", str(tmp_path)],
+        )
+
+        assert result.exit_code != 0
+        assert "File" in result.output
+        assert "is a directory" in result.output
+
     def test_generate_warns_empty_index(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
         with (

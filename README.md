@@ -120,7 +120,7 @@ Options:
 | `-d`, `--persist-dir` | `.playwright_god_index` | Fallback index directory when no `--memory-map` |
 | `-c`, `--collection` | `repo` | ChromaDB collection name (fallback only) |
 | `--focus` | *(none)* | Free-text hint to narrow the plan (e.g. `"checkout flow"`) |
-| `-o`, `--output` | stdout | Write the plan to this file |
+| `-o`, `--output` | stdout | Write the plan to this file (must be a file path, not a directory) |
 | `--provider` | auto | LLM provider |
 | `--model` | provider default | Model name |
 
@@ -144,7 +144,7 @@ Options:
 |------|---------|-------------|
 | `-d`, `--persist-dir` | `.playwright_god_index` | Directory with the persisted index |
 | `-c`, `--collection` | `repo` | ChromaDB collection name |
-| `-o`, `--output` | stdout | Write test to this file |
+| `-o`, `--output` | stdout | Write test to this file (must be a file path, not a directory) |
 | `--n-context` | `10` | Number of context chunks to retrieve |
 | `-m`, `--memory-map` | *(none)* | Inject memory map context into the prompt |
 | `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template` |

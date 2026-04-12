@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from playwright_god.cli import cli
+from playwright_god.cli import cli, main
 
 
 @pytest.fixture()
@@ -28,17 +28,20 @@ class TestIndexCommand:
         with (
             patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
             patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.format_feature_summary") as MockSummary,
         ):
             mock_emb = MagicMock()
             MockEmb.return_value = mock_emb
             mock_indexer = MagicMock()
             mock_indexer.count.return_value = 42
             MockIdx.return_value = mock_indexer
+            MockSummary.return_value = "Feature areas inferred:\n  - Authentication"
 
             result = runner.invoke(cli, ["index", sample_repo_path, "-d", persist])
 
         assert result.exit_code == 0
         assert "Found" in result.output
+        assert "Feature areas inferred" in result.output
         assert "42" in result.output
 
     def test_index_missing_directory(self, runner):
@@ -48,6 +51,59 @@ class TestIndexCommand:
     def test_index_empty_directory(self, runner, tmp_path):
         result = runner.invoke(cli, ["index", str(tmp_path)])
         assert result.exit_code != 0
+
+    def test_index_adds_extra_file(self, runner, sample_repo_path, tmp_path):
+        persist = str(tmp_path / "idx")
+        extra_file = tmp_path / "saml-config.json"
+        extra_file.write_text('{"issuer":"example"}', encoding="utf-8")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+        ):
+            mock_emb = MagicMock()
+            MockEmb.return_value = mock_emb
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 5
+            MockIdx.return_value = mock_indexer
+
+            result = runner.invoke(
+                cli,
+                ["index", sample_repo_path, "-d", persist, "-e", str(extra_file)],
+            )
+
+        assert result.exit_code == 0
+        assert "Added extra file" in result.output
+
+    def test_index_warns_when_extra_file_cannot_be_read(self, runner, sample_repo_path, tmp_path):
+        persist = str(tmp_path / "idx")
+        extra_file = tmp_path / "broken.json"
+        extra_file.write_text("{}", encoding="utf-8")
+        original_read_text = Path.read_text
+
+        def failing_read_text(self, *args, **kwargs):
+            if self == extra_file:
+                raise OSError("boom")
+            return original_read_text(self, *args, **kwargs)
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.Path.read_text", new=failing_read_text),
+        ):
+            mock_emb = MagicMock()
+            MockEmb.return_value = mock_emb
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 5
+            MockIdx.return_value = mock_indexer
+
+            result = runner.invoke(
+                cli,
+                ["index", sample_repo_path, "-d", persist, "-e", str(extra_file)],
+            )
+
+        assert result.exit_code == 0
+        assert "Warning: could not read" in result.output
 
 
 class TestGenerateCommand:
@@ -80,11 +136,11 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "@playwright/test" in result.output or "playwright" in result.output.lower()
+        assert "from playwright.sync_api import Page, expect" in result.output
 
     def test_generate_writes_output_file(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
-        output_file = str(tmp_path / "test.spec.ts")
+        output_file = str(tmp_path / "test.spec.py")
 
         with (
             patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
@@ -108,6 +164,17 @@ class TestGenerateCommand:
         assert Path(output_file).exists()
         content = Path(output_file).read_text()
         assert len(content) > 0
+        assert "def test_" in content
+
+    def test_generate_rejects_directory_output_path(self, runner, tmp_path):
+        result = runner.invoke(
+            cli,
+            ["generate", "login form test", "-o", str(tmp_path)],
+        )
+
+        assert result.exit_code != 0
+        assert "File" in result.output
+        assert "is a directory" in result.output
 
     def test_generate_warns_empty_index(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
@@ -162,7 +229,7 @@ class TestGenerateCommand:
                 ["generate", "test something", "-d", persist, "--provider", "template"],
             )
         assert result.exit_code == 0
-        assert "@playwright/test" in result.output or "playwright" in result.output.lower()
+        assert "from playwright.sync_api import Page, expect" in result.output
 
     def test_generate_openai_provider_selected(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
@@ -331,6 +398,24 @@ class TestGenerateCommand:
         assert result.exit_code == 0
         MockAnthropic.assert_called_once()
 
+    def test_generate_autodetects_openai_key(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+            patch.dict("os.environ", {"OPENAI_API_KEY": "sk-auto"}, clear=False),
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# openai auto"
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(cli, ["generate", "login flow", "-d", persist])
+
+        assert result.exit_code == 0
+        MockOpenAI.assert_called_once()
+
     def test_generate_autodetects_gemini_key(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
         os.environ.pop("OPENAI_API_KEY", None)
@@ -402,12 +487,7 @@ class TestGenerateCommand:
 
         assert result.exit_code == 0
         assert "Memory map loaded" in result.stderr
-        # generate should still produce TypeScript test code, not a Markdown plan
-        assert (
-            "test.describe(" in result.output
-            or "from '@playwright/test'" in result.output
-            or 'from "@playwright/test"' in result.output
-        )
+        assert "from playwright.sync_api import Page, expect" in result.output
         # must NOT produce a Markdown plan
         assert "# Playwright Test Plan" not in result.output
 
@@ -437,6 +517,103 @@ class TestGenerateCommand:
         assert result.exit_code == 0
         assert "Warning" in result.stderr
 
+    def test_generate_reads_auth_config_and_env_file(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        auth_config = tmp_path / "auth.json"
+        env_file = tmp_path / ".env"
+        auth_config.write_text('{"issuer":"https://idp.example.com"}', encoding="utf-8")
+        env_file.write_text("TEST_USERNAME=alice\nTEST_PASSWORD=secret\n", encoding="utf-8")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.TemplateLLMClient") as MockTemplate,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "def test_example(page):\n    pass\n"
+            MockTemplate.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate",
+                    "login flow",
+                    "-d",
+                    persist,
+                    "--provider",
+                    "template",
+                    "--auth-type",
+                    "saml",
+                    "--auth-config",
+                    str(auth_config),
+                    "--env-file",
+                    str(env_file),
+                ],
+            )
+
+        assert result.exit_code == 0
+        called_prompt = mock_client.complete.call_args[0][0]
+        assert "issuer" in called_prompt
+        assert 'os.environ.get("TEST_USERNAME", "")' in called_prompt
+        assert "Auth type: saml" in result.stderr
+
+    def test_generate_warns_when_auth_config_cannot_be_read(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        auth_config = tmp_path / "auth.json"
+        auth_config.write_text("{}", encoding="utf-8")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("builtins.open", side_effect=OSError("boom")),
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            result = runner.invoke(
+                cli,
+                [
+                    "generate",
+                    "login flow",
+                    "-d",
+                    persist,
+                    "--provider",
+                    "template",
+                    "--auth-config",
+                    str(auth_config),
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Warning: could not read --auth-config" in result.stderr
+
+    def test_generate_warns_when_env_file_cannot_be_read(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        env_file = tmp_path / ".env"
+        env_file.write_text("TEST_USERNAME=alice\n", encoding="utf-8")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("builtins.open", side_effect=OSError("boom")),
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            result = runner.invoke(
+                cli,
+                [
+                    "generate",
+                    "login flow",
+                    "-d",
+                    persist,
+                    "--provider",
+                    "template",
+                    "--env-file",
+                    str(env_file),
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Warning: could not read --env-file" in result.stderr
+
 
 class TestIndexMemoryMapFlag:
     def test_index_saves_memory_map(self, runner, sample_repo_path, tmp_path):
@@ -463,6 +640,7 @@ class TestIndexMemoryMapFlag:
 
         assert result.exit_code == 0
         MockBuildMap.assert_called_once()
+        assert "repository_feature_map" in MockBuildMap.call_args.kwargs
         MockSaveMap.assert_called_once()
         assert "Memory map saved" in result.output
 
@@ -565,12 +743,39 @@ class TestPlanCommand:
         content = Path(output_file).read_text()
         assert len(content) > 0
 
+    def test_plan_output_rejects_directory(self, runner, tmp_path):
+        import json
+        map_file = str(tmp_path / "map.json")
+        map_data = {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "total_files": 1,
+            "total_chunks": 1,
+            "languages": {"python": 1},
+            "files": [],
+        }
+        with open(map_file, "w") as f:
+            json.dump(map_data, f)
+
+        result = runner.invoke(
+            cli,
+            ["plan", "--memory-map", map_file, "--provider", "template", "-o", str(tmp_path)],
+        )
+
+        assert result.exit_code != 0
+
     def test_plan_missing_memory_map_errors(self, runner, tmp_path):
         """plan should exit with an error when the memory map file does not exist."""
         result = runner.invoke(
             cli,
             ["plan", "--memory-map", str(tmp_path / "nonexistent.json")],
         )
+        assert result.exit_code != 0
+
+    def test_plan_invalid_memory_map_content_errors(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with patch("playwright_god.cli.load_memory_map", side_effect=ValueError("bad json")):
+            result = runner.invoke(cli, ["plan", "--memory-map", str(map_file)])
         assert result.exit_code != 0
 
     def test_plan_with_focus(self, runner, tmp_path):
@@ -623,4 +828,150 @@ class TestPlanCommand:
         assert result.exit_code == 0
         # Verify the public helper (not the private _collection) was used
         mock_indexer.get_chunk_stubs.assert_called_once()
+
+    def test_plan_empty_index_errors(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with patch("playwright_god.cli.RepositoryIndexer") as MockIdx:
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 0
+            MockIdx.return_value = mock_indexer
+            result = runner.invoke(cli, ["plan", "-d", persist])
+        assert result.exit_code != 0
+
+    def test_plan_openai_provider_selected(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockOpenAI.return_value = mock_client
+            result = runner.invoke(
+                cli,
+                ["plan", "--memory-map", str(map_file), "--provider", "openai", "--api-key", "sk-test"],
+            )
+        assert result.exit_code == 0
+        MockOpenAI.assert_called_once_with(api_key="sk-test", model="gpt-4o")
+
+    def test_plan_anthropic_provider_selected(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.AnthropicClient") as MockAnthropic,
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockAnthropic.return_value = mock_client
+            result = runner.invoke(
+                cli,
+                ["plan", "--memory-map", str(map_file), "--provider", "anthropic", "--api-key", "ant-test"],
+            )
+        assert result.exit_code == 0
+        MockAnthropic.assert_called_once_with(api_key="ant-test", model="claude-3-5-sonnet-20241022")
+
+    def test_plan_gemini_provider_selected(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.GeminiClient") as MockGemini,
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockGemini.return_value = mock_client
+            result = runner.invoke(
+                cli,
+                ["plan", "--memory-map", str(map_file), "--provider", "gemini", "--api-key", "gem-test"],
+            )
+        assert result.exit_code == 0
+        MockGemini.assert_called_once_with(api_key="gem-test", model="gemini-1.5-pro")
+
+    def test_plan_ollama_provider_selected(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.OllamaClient") as MockOllama,
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockOllama.return_value = mock_client
+            result = runner.invoke(
+                cli,
+                ["plan", "--memory-map", str(map_file), "--provider", "ollama", "--model", "mistral"],
+            )
+        assert result.exit_code == 0
+        MockOllama.assert_called_once_with(model="mistral", base_url="http://localhost:11434")
+
+    def test_plan_autodetects_openai_key(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+            patch.dict("os.environ", {"OPENAI_API_KEY": "sk-auto"}, clear=False),
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockOpenAI.return_value = mock_client
+            result = runner.invoke(cli, ["plan", "--memory-map", str(map_file)])
+        assert result.exit_code == 0
+        MockOpenAI.assert_called_once()
+
+    def test_plan_autodetects_anthropic_key(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.AnthropicClient") as MockAnthropic,
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "ant-auto"}, clear=False),
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockAnthropic.return_value = mock_client
+            result = runner.invoke(cli, ["plan", "--memory-map", str(map_file)])
+        assert result.exit_code == 0
+        MockAnthropic.assert_called_once()
+
+    def test_plan_autodetects_gemini_key(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.GeminiClient") as MockGemini,
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "gem-auto"}, clear=False),
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockGemini.return_value = mock_client
+            result = runner.invoke(cli, ["plan", "--memory-map", str(map_file)])
+        assert result.exit_code == 0
+        MockGemini.assert_called_once()
+
+    def test_plan_autodetects_template_when_no_keys_are_present(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.TemplateLLMClient") as MockTemplate,
+            patch.dict("os.environ", {}, clear=False),
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.return_value = "# plan"
+            MockTemplate.return_value = mock_client
+            os.environ.pop("OPENAI_API_KEY", None)
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            os.environ.pop("GOOGLE_API_KEY", None)
+            result = runner.invoke(cli, ["plan", "--memory-map", str(map_file)])
+        assert result.exit_code == 0
+        MockTemplate.assert_called_once()
+
+
+def test_main_invokes_cli():
+    with patch("playwright_god.cli.cli") as mock_cli:
+        main()
+    mock_cli.assert_called_once()
 

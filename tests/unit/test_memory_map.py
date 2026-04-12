@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from playwright_god.chunker import Chunk
+from playwright_god.feature_map import infer_repository_feature_map
 from playwright_god.memory_map import (
     build_memory_map,
     format_memory_map_for_prompt,
@@ -112,6 +113,26 @@ class TestBuildMemoryMap:
         result = build_memory_map([chunk])
         assert result["files"][0]["chunks"][0]["chunk_id"] == "myid123"
 
+    def test_includes_feature_metadata_when_provided(self, simple_file_info):
+        chunk = Chunk(
+            file_path=simple_file_info.path,
+            content=simple_file_info.content,
+            start_line=1,
+            end_line=3,
+            language=simple_file_info.language,
+            chunk_id="feature-id",
+        )
+        feature_map = infer_repository_feature_map(
+            [simple_file_info],
+            chunks=[chunk],
+            source_root="/repo",
+            generated_at="2026-04-11T00:00:00+00:00",
+        )
+        result = build_memory_map([chunk], repository_feature_map=feature_map)
+        assert result["schema_version"] == "2.0"
+        assert "features" in result
+        assert "test_opportunities" in result
+
 
 # ---------------------------------------------------------------------------
 # save_memory_map / load_memory_map
@@ -197,6 +218,18 @@ class TestFormatMemoryMapForPrompt:
         py_pos = result.index("python")
         assert ts_pos < py_pos  # typescript (2) appears before python (1)
 
+    def test_invalid_language_counts_are_skipped(self):
+        malformed_map = {
+            "total_files": 2,
+            "total_chunks": 2,
+            "languages": {"typescript": "two", "python": 1, "go": None},
+            "files": [],
+        }
+        result = format_memory_map_for_prompt(malformed_map)
+        assert "python (1)" in result
+        assert "typescript" not in result
+        assert "go" not in result
+
     def test_malformed_chunk_missing_line_keys_does_not_crash(self):
         """format_memory_map_for_prompt should not raise for chunks missing line keys."""
         malformed_map = {
@@ -233,3 +266,82 @@ class TestFormatMemoryMapForPrompt:
         result = format_memory_map_for_prompt(malformed_map)
         assert "src/app.ts" in result
         assert "(no chunks)" in result
+
+    def test_non_numeric_language_counts_are_skipped(self):
+        result = format_memory_map_for_prompt(
+            {"total_files": 0, "total_chunks": 0, "languages": {"python": "two"}, "files": []}
+        )
+        assert "Languages   : n/a" in result
+
+    def test_non_dict_file_entries_are_skipped(self):
+        result = format_memory_map_for_prompt(
+            {"total_files": 1, "total_chunks": 1, "languages": {}, "files": ["bad-entry"]}
+        )
+        assert "File index" in result
+
+    def test_feature_sections_render_when_present(self):
+        feature_map = {
+            "features": [
+                {
+                    "feature_id": "authentication",
+                    "name": "Authentication",
+                    "confidence": 0.9,
+                    "summary": "Sign-in workflows",
+                    "artifacts": [{"file_path": "src/auth.py"}],
+                }
+            ],
+            "correlations": [
+                {
+                    "source_feature_id": "authentication",
+                    "target_feature_id": "navigation",
+                    "relationship_type": "shared-artifact",
+                }
+            ],
+            "test_opportunities": [
+                {
+                    "feature_id": "authentication",
+                    "title": "User can sign in",
+                    "confidence": 0.9,
+                }
+            ],
+        }
+        result = format_memory_map_for_prompt(
+            {
+                "total_files": 0,
+                "total_chunks": 0,
+                "languages": {},
+                "files": [],
+                **feature_map,
+            }
+        )
+        assert "Feature areas" in result
+        assert "Suggested test opportunities" in result
+
+    def test_feature_sections_skip_non_dict_entries_and_support_dict_payloads(self):
+        result = format_memory_map_for_prompt(
+            {
+                "total_files": 0,
+                "total_chunks": 0,
+                "languages": {},
+                "files": [],
+                "features": ["bad-feature", {"feature_id": "docs"}],
+                "correlations": ["bad-correlation", {"source_feature_id": "a", "target_feature_id": "b"}],
+                "test_opportunities": ["bad-opportunity", {"feature_id": "a"}],
+            }
+        )
+        assert "docs" in result
+        assert "a -> b [related]" in result
+        assert "a: Unknown scenario [?]" in result
+
+    def test_build_memory_map_accepts_feature_dict_payload(self):
+        result = build_memory_map(
+            [],
+            repository_feature_map={
+                "schema_version": "2.1",
+                "features": [],
+                "correlations": [],
+                "test_opportunities": [],
+                "source_root": "/repo",
+            },
+        )
+        assert result["schema_version"] == "2.1"

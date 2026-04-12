@@ -11,6 +11,7 @@
     <nav>
       <a href="/">Home</a>
       <a href="/login">Login</a>
+      <a href="/settings">Settings</a>
     </nav>
   </header>
 
@@ -31,6 +32,11 @@
 
     <section id="todo-list" class="hidden">
       <h2>My Todos</h2>
+      <aside id="profile-panel" data-testid="profile-panel">
+        <h3>Workspace Profile</h3>
+        <p id="profile-name">Signed in user</p>
+        <button type="button" id="logout-btn">Logout</button>
+      </aside>
       <form id="add-todo-form">
         <input type="text" id="new-todo" placeholder="Add a new todo…" data-testid="new-todo-input" />
         <button type="submit" id="add-todo-btn">Add</button>

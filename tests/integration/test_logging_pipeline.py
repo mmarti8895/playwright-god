@@ -89,11 +89,11 @@ class TestTemplateLLMClientLogging:
 
     def test_logging_keyword_triggers_log_tests(self):
         code = self._generate("audit logging for delete action")
-        assert "page.on('console'" in code or "page.on(" in code
+        assert 'page.on("console"' in code or "page.on(" in code
 
     def test_audit_trail_keyword_triggers_log_tests(self):
         code = self._generate("audit trail validation")
-        assert "page.on('console'" in code or "pageerror" in code.lower()
+        assert 'page.on("console"' in code or "pageerror" in code.lower()
 
     def test_error_log_keyword_triggers_log_tests(self):
         code = self._generate("error log capture on form submit")
@@ -110,7 +110,7 @@ class TestTemplateLLMClientLogging:
     def test_no_log_tests_for_plain_description(self):
         code = self._generate("user fills in the registration form")
         # Should not inject log tests for an unrelated description
-        assert "page.on('pageerror'" not in code
+        assert 'page.on("pageerror"' not in code
 
     def test_log_tests_have_no_uncaught_errors_block(self):
         code = self._generate("logging and audit")
@@ -156,8 +156,8 @@ class TestGenerateLoggingAuthType:
         gen = PlaywrightTestGenerator(llm_client=CapturingLLM())
         gen.generate("log assertions", auth_type="logging")
         prompt = captured[0]
-        assert "page.on('console'" in prompt
-        assert "page.on('pageerror'" in prompt
+        assert 'page.on("console"' in prompt
+        assert 'page.on("pageerror"' in prompt
         assert "page.route(" in prompt
 
 
@@ -176,7 +176,7 @@ class TestLoggingPipeline:
         )
         test_code = generator.generate("audit logging for delete action")
         assert isinstance(test_code, str)
-        assert "@playwright/test" in test_code
+        assert "from playwright.sync_api import Page, expect" in test_code
         assert "page.goto" in test_code
 
     def test_logging_pipeline_with_auth_type(self):

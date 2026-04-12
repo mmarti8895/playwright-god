@@ -59,6 +59,19 @@ Create a feature-oriented test plan:
 playwright-god plan --memory-map .idx/memory_map.json -o inferred_test_plan.md
 ```
 
+Options:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-m`, `--memory-map` | *(build from index)* | Path to the memory map JSON file |
+| `-d`, `--persist-dir` | `.playwright_god_index` | Fallback index directory when no `--memory-map` |
+| `-c`, `--collection` | `repo` | ChromaDB collection name (fallback only) |
+| `--focus` | *(none)* | Free-text hint to narrow the plan (e.g. `"checkout flow"`) |
+| `-o`, `--output` | stdout | Write the plan to this file (must be a file path, not a directory) |
+| `--provider` | auto | LLM provider |
+| `--model` | provider default | Model name |
+
+### Generate a Playwright test
 Focus the plan on one area:
 
 ```bash
@@ -79,6 +92,17 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 - injects optional saved memory and auth context
 - emits Python Playwright tests using `playwright.sync_api`
 
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-d`, `--persist-dir` | `.playwright_god_index` | Directory with the persisted index |
+| `-c`, `--collection` | `repo` | ChromaDB collection name |
+| `-o`, `--output` | stdout | Write test to this file (must be a file path, not a directory) |
+| `--n-context` | `10` | Number of context chunks to retrieve |
+| `-m`, `--memory-map` | *(none)* | Inject memory map context into the prompt |
+| `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template` |
+| `--model` | provider default | Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `gemini-1.5-pro`, `llama3`) |
+| `--api-key` | env var | API key (overrides the environment variable) |
+| `--ollama-url` | `http://localhost:11434` | Ollama server URL (used only with `--provider=ollama`) |
 `plan`
 - turns a saved memory map or index inventory into a Markdown test plan
 - groups scenarios by inferred feature area when that metadata is available

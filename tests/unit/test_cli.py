@@ -567,6 +567,26 @@ class TestPlanCommand:
         content = Path(output_file).read_text()
         assert len(content) > 0
 
+    def test_plan_output_rejects_directory(self, runner, tmp_path):
+        import json
+        map_file = str(tmp_path / "map.json")
+        map_data = {
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "total_files": 1,
+            "total_chunks": 1,
+            "languages": {"python": 1},
+            "files": [],
+        }
+        with open(map_file, "w") as f:
+            json.dump(map_data, f)
+
+        result = runner.invoke(
+            cli,
+            ["plan", "--memory-map", map_file, "--provider", "template", "-o", str(tmp_path)],
+        )
+
+        assert result.exit_code != 0
+
     def test_plan_missing_memory_map_errors(self, runner, tmp_path):
         """plan should exit with an error when the memory map file does not exist."""
         result = runner.invoke(

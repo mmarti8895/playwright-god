@@ -144,3 +144,43 @@ class TestClear:
         in_memory_indexer.clear()
         in_memory_indexer.add_chunks([make_chunk(chunk_id="post")])
         assert in_memory_indexer.count() == 1
+
+
+class TestGetChunkStubs:
+    def test_skips_non_dict_metadata_entries(self, in_memory_indexer):
+        in_memory_indexer._collection.get = lambda include: {
+            "ids": ["good", "bad"],
+            "metadatas": [
+                {
+                    "file_path": "src/app.py",
+                    "start_line": 1,
+                    "end_line": 5,
+                    "language": "python",
+                },
+                "not-a-dict",
+            ],
+        }
+
+        stubs = in_memory_indexer.get_chunk_stubs()
+
+        assert [stub.chunk_id for stub in stubs] == ["good"]
+        assert stubs[0].file_path == "src/app.py"
+
+    def test_invalid_line_metadata_defaults_to_zeroes(self, in_memory_indexer):
+        in_memory_indexer._collection.get = lambda include: {
+            "ids": ["bad-lines"],
+            "metadatas": [
+                {
+                    "file_path": "src/app.py",
+                    "start_line": "NaN",
+                    "end_line": None,
+                    "language": "python",
+                }
+            ],
+        }
+
+        stubs = in_memory_indexer.get_chunk_stubs()
+
+        assert len(stubs) == 1
+        assert stubs[0].start_line == 0
+        assert stubs[0].end_line == 0

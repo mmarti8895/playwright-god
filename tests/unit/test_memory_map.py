@@ -197,6 +197,18 @@ class TestFormatMemoryMapForPrompt:
         py_pos = result.index("python")
         assert ts_pos < py_pos  # typescript (2) appears before python (1)
 
+    def test_invalid_language_counts_are_skipped(self):
+        malformed_map = {
+            "total_files": 2,
+            "total_chunks": 2,
+            "languages": {"typescript": "two", "python": 1, "go": None},
+            "files": [],
+        }
+        result = format_memory_map_for_prompt(malformed_map)
+        assert "python (1)" in result
+        assert "typescript" not in result
+        assert "go" not in result
+
     def test_malformed_chunk_missing_line_keys_does_not_crash(self):
         """format_memory_map_for_prompt should not raise for chunks missing line keys."""
         malformed_map = {

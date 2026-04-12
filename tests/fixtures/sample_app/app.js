@@ -30,6 +30,13 @@ function getToken() {
   return localStorage.getItem('auth_token');
 }
 
+function renderWorkspaceProfile(email) {
+  const profileName = document.getElementById('profile-name');
+  if (profileName) {
+    profileName.textContent = email || 'Signed in user';
+  }
+}
+
 // ---- Todo CRUD -----------------------------------------------------------
 
 async function fetchTodos() {
@@ -110,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await login(email, password);
         document.getElementById('login-form').classList.add('hidden');
         document.getElementById('todo-list').classList.remove('hidden');
+        renderWorkspaceProfile(email);
         renderAll();
       } catch {
         alert('Login failed. Please check your credentials.');
@@ -127,6 +135,13 @@ document.addEventListener('DOMContentLoaded', () => {
       await addTodo(title);
       input.value = '';
       renderAll();
+    });
+  }
+
+  const logoutButton = document.getElementById('logout-btn');
+  if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+      logout();
     });
   }
 });

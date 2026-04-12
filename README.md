@@ -1,249 +1,166 @@
 # playwright-god
 
-**playwright-god** is a CLI tool that remembers your repository's code structure and context via a **RAG (Retrieval-Augmented Generation)** pipeline, then uses that context to generate high-quality [Playwright](https://playwright.dev/) tests.
+`playwright-god` is a CLI that indexes a repository, builds a compact memory of how its files relate, and uses that context to generate Playwright tests in Python.
 
----
+## How It Works
 
-## How it works
-
-```
-Repository files
-      │
-      ▼
- RepositoryCrawler          ← walks the directory tree, reads file contents
-      │
-      ▼
-    FileChunker              ← splits files into overlapping line-based chunks
-      │
-      ▼
-  RepositoryIndexer          ← embeds chunks & stores them in a ChromaDB vector store
-      │
-      ├─► MemoryMap           ← optional JSON snapshot of every indexed file & chunk
-      │                          (saved with `index --memory-map`, used by `generate`
-      │                           and `plan` to give the AI a full codebase overview)
-      │
-      ▼  (at query time)
-   RAG search                ← retrieves the most relevant chunks for a given description
-      │
-      ▼
-PlaywrightTestGenerator      ← builds a prompt from the retrieved context and calls an LLM
-      │
-      ├─► generate            ← produces a TypeScript Playwright .spec.ts file
-      └─► plan                ← produces a Markdown test-plan document
+```text
+repository files
+  -> RepositoryCrawler
+  -> FileChunker
+  -> RepositoryIndexer
+  -> feature-aware memory map
+  -> generate / plan
 ```
 
----
+During indexing, the tool now infers feature areas, shared artifacts, and candidate test opportunities. When you save a memory map, that higher-level repository understanding can be reused later without rebuilding the full analysis.
 
 ## Installation
 
 ```bash
 pip install -e .
-# or install with support for a specific LLM provider
-pip install -e ".[openai]"       # OpenAI (GPT-4o, etc.)
-pip install -e ".[anthropic]"    # Anthropic Claude
-pip install -e ".[gemini]"       # Google Gemini
-pip install -e ".[ollama]"       # Ollama (local LLMs, requires requests)
-pip install -e ".[all-llms]"     # All providers at once
+pip install -e ".[dev]"
 ```
 
----
-
-## Quick start
-
-### 1. Index a repository
+Optional provider extras:
 
 ```bash
-playwright-god index /path/to/your/repo
+pip install -e ".[openai]"
+pip install -e ".[anthropic]"
+pip install -e ".[gemini]"
+pip install -e ".[ollama]"
+pip install -e ".[all-llms]"
 ```
 
-This crawls the repository, chunks every source file, embeds the chunks, and saves a [ChromaDB](https://www.trychroma.com/) vector store to `.playwright_god_index/`.
+## Quick Start
 
-Options:
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-d`, `--persist-dir` | `.playwright_god_index` | Directory to save the index |
-| `-c`, `--collection` | `repo` | ChromaDB collection name |
-| `--chunk-size` | `80` | Lines per chunk |
-| `--overlap` | `10` | Overlapping lines between chunks |
-| `-m`, `--memory-map` | *(not saved)* | Write a JSON memory map to this file |
-
-### 2. (Optional) Generate a memory map
-
-A **memory map** is a compact JSON document that records every indexed file and the line ranges of its chunks.  It gives the AI a structured, high-level overview of the entire codebase without re-sending every chunk's text.
+Index a repository and save reusable memory:
 
 ```bash
-# Save the memory map when indexing
 playwright-god index . -d .idx --memory-map .idx/memory_map.json
 ```
 
-The JSON structure looks like this:
+Expected output includes:
+
+- crawl and chunk progress
+- a feature summary with evidence-backed areas such as authentication or navigation
+- a persisted vector index
+- a saved memory map when `--memory-map` is provided
+
+Generate Python Playwright tests:
+
+```bash
+playwright-god generate "user login flow" -d .idx --memory-map .idx/memory_map.json -o tests/login.spec.py
+```
+
+Create a feature-oriented test plan:
+
+```bash
+playwright-god plan --memory-map .idx/memory_map.json -o inferred_test_plan.md
+```
+
+Focus the plan on one area:
+
+```bash
+playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -o auth_plan.md
+```
+
+## CLI Notes
+
+`index`
+- crawls files
+- chunks source content
+- infers feature groupings and correlations
+- persists embeddings
+- optionally saves a compact memory map
+
+`generate`
+- retrieves relevant repository chunks
+- injects optional saved memory and auth context
+- emits Python Playwright tests using `playwright.sync_api`
+
+`plan`
+- turns a saved memory map or index inventory into a Markdown test plan
+- groups scenarios by inferred feature area when that metadata is available
+
+## Memory Map
+
+The saved memory map keeps the original file inventory and extends it with streamlined repository understanding:
 
 ```json
 {
-  "generated_at": "2024-01-01T00:00:00+00:00",
+  "generated_at": "2026-04-11T00:00:00+00:00",
   "total_files": 12,
   "total_chunks": 87,
-  "languages": { "typescript": 8, "python": 4 },
-  "files": [
-    {
-      "path": "src/auth.ts",
-      "language": "typescript",
-      "chunks": [
-        { "chunk_id": "a1b2c3", "start_line": 1, "end_line": 80 },
-        { "chunk_id": "d4e5f6", "start_line": 71, "end_line": 140 }
-      ]
-    }
-  ]
+  "languages": { "python": 6, "javascript": 4, "html": 2 },
+  "files": [],
+  "schema_version": "2.0",
+  "features": [],
+  "correlations": [],
+  "test_opportunities": [],
+  "source_root": "/abs/path/to/repo"
 }
 ```
 
-### 3. Plan tests with the AI
+This format is meant to stay compact: it keeps evidence references, not full chunk text.
 
-The `plan` command uses the memory map to ask the AI for a comprehensive, feature-area-grouped list of test scenarios.  The result is a Markdown document you can use as a testing roadmap.
+## Providers
 
-```bash
-playwright-god plan --memory-map .idx/memory_map.json
-```
+Auto-detection order when `--provider` is omitted:
 
-With an optional focus:
+1. `OPENAI_API_KEY`
+2. `ANTHROPIC_API_KEY`
+3. `GOOGLE_API_KEY`
+4. offline template fallback
 
-```bash
-playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -o plan.md
-```
+Supported providers:
 
-Options:
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-m`, `--memory-map` | *(build from index)* | Path to the memory map JSON file |
-| `-d`, `--persist-dir` | `.playwright_god_index` | Fallback index directory when no `--memory-map` |
-| `-c`, `--collection` | `repo` | ChromaDB collection name (fallback only) |
-| `--focus` | *(none)* | Free-text hint to narrow the plan (e.g. `"checkout flow"`) |
-| `-o`, `--output` | stdout | Write the plan to this file |
-| `--provider` | auto | LLM provider |
-| `--model` | provider default | Model name |
-
-### 4. Generate a Playwright test
-
-```bash
-playwright-god generate "user login flow on the /login page"
-```
-
-Retrieves relevant context from the index and generates a TypeScript Playwright test on **stdout**.
-
-Pass `--memory-map` to inject the full codebase inventory into the prompt for richer, more accurate output:
-
-```bash
-playwright-god generate "checkout flow" --memory-map .idx/memory_map.json -o tests/checkout.spec.ts
-```
-
-Options:
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-d`, `--persist-dir` | `.playwright_god_index` | Directory with the persisted index |
-| `-c`, `--collection` | `repo` | ChromaDB collection name |
-| `-o`, `--output` | stdout | Write test to this file |
-| `--n-context` | `10` | Number of context chunks to retrieve |
-| `-m`, `--memory-map` | *(none)* | Inject memory map context into the prompt |
-| `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template` |
-| `--model` | provider default | Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `gemini-1.5-pro`, `llama3`) |
-| `--api-key` | env var | API key (overrides the environment variable) |
-| `--ollama-url` | `http://localhost:11434` | Ollama server URL (used only with `--provider=ollama`) |
-
-### LLM backends
-
-| Provider | How to select | Default model | Env var |
-|----------|--------------|---------------|---------|
-| OpenAI | `--provider openai` or `OPENAI_API_KEY` set | `gpt-4o` | `OPENAI_API_KEY` |
-| Anthropic | `--provider anthropic` or `ANTHROPIC_API_KEY` set | `claude-3-5-sonnet-20241022` | `ANTHROPIC_API_KEY` |
-| Google Gemini | `--provider gemini` or `GOOGLE_API_KEY` set | `gemini-1.5-pro` | `GOOGLE_API_KEY` |
-| Ollama (local) | `--provider ollama` | `llama3` | *(none needed)* |
-| Template | `--provider template` or no key found | *(offline)* | *(none needed)* |
-
-Auto-detection order (when `--provider` is not specified): `OPENAI_API_KEY` → `ANTHROPIC_API_KEY` → `GOOGLE_API_KEY` → template fallback.
-
----
-
-## Example
-
-```bash
-# 1. Index the repository and save a memory map
-playwright-god index . -d .idx --memory-map .idx/memory_map.json
-
-# 2. Generate an AI-powered test plan from the memory map
-playwright-god plan --memory-map .idx/memory_map.json -o plan.md
-
-# Plan focused on a specific area
-playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -o auth_plan.md
-
-# 3. Generate tests (with memory map context for richer output)
-playwright-god generate "todo list: add, complete, and delete items" \
-  -d .idx --memory-map .idx/memory_map.json -o tests/todo.spec.ts
-
-# Generate with OpenAI
-OPENAI_API_KEY=sk-... playwright-god generate "login page" \
-  -d .idx --memory-map .idx/memory_map.json -o tests/login.spec.ts
-
-# Generate with Anthropic Claude
-ANTHROPIC_API_KEY=ant-... playwright-god generate "login page" -d .idx -o tests/login.spec.ts
-
-# Generate with Google Gemini
-GOOGLE_API_KEY=AIza... playwright-god generate "login page" -d .idx -o tests/login.spec.ts
-
-# Generate with a local Ollama model
-playwright-god generate "login page" -d .idx --provider ollama --model mistral -o tests/login.spec.ts
-```
-
----
-
-## Architecture
-
-| Module | Responsibility |
-|--------|---------------|
-| `playwright_god/crawler.py` | Walk directory tree; build file-info objects and structure summary |
-| `playwright_god/chunker.py` | Split `FileInfo` into overlapping `Chunk` objects |
-| `playwright_god/embedder.py` | Embedding functions: `MockEmbedder` (tests), `DefaultEmbedder` (ChromaDB/ONNX), `OpenAIEmbedder` |
-| `playwright_god/indexer.py` | ChromaDB-backed vector store: `add_chunks`, `search`, `clear` |
-| `playwright_god/memory_map.py` | Build/save/load/format the JSON chunk inventory (memory map) |
-| `playwright_god/generator.py` | `TemplateLLMClient`, `OpenAIClient`, `AnthropicClient`, `GeminiClient`, `OllamaClient`, `PlaywrightTestGenerator` |
-| `playwright_god/cli.py` | Click CLI (`index`, `generate`, and `plan` commands) |
-
----
+- `openai`
+- `anthropic`
+- `gemini`
+- `ollama`
+- `template`
 
 ## Development
 
+Install dev dependencies:
+
 ```bash
-# Install dev dependencies
 pip install -e ".[dev]"
+```
 
-# Run all tests
-pytest
+Run targeted tests:
 
-# Run with coverage
+```bash
+pytest tests/unit/test_feature_map.py tests/unit/test_memory_map.py tests/unit/test_generator.py tests/unit/test_cli.py -q
+pytest tests/integration/test_pipeline.py tests/integration/test_feature_memory_pipeline.py tests/integration/test_self.py -q
+pytest tests/integration/test_auth_pipeline.py tests/integration/test_logging_pipeline.py -q
+```
+
+Run coverage:
+
+```bash
 pytest --cov=playwright_god --cov-report=term-missing
 ```
 
-### Test structure
+## Repository Layout
 
-```
+```text
+playwright_god/
+  cli.py
+  crawler.py
+  chunker.py
+  feature_map.py
+  generator.py
+  indexer.py
+  memory_map.py
+
 tests/
-  conftest.py                 # shared fixtures (sample app, in-memory indexer)
-  fixtures/
-    sample_app/               # small HTML/JS/CSS app used in integration tests
   unit/
-    test_crawler.py
-    test_chunker.py
-    test_embedder.py
-    test_indexer.py
-    test_generator.py
-    test_cli.py
   integration/
-    test_pipeline.py          # full crawl → index → generate pipeline
+  e2e/
+  fixtures/
 ```
-
----
 
 ## License
 

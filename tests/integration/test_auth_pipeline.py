@@ -51,31 +51,30 @@ def _build_indexer(repo_path: str) -> RepositoryIndexer:
 
 
 class TestAuthTemplatesModule:
-    def test_get_template_saml_returns_typescript(self):
+    def test_get_template_saml_returns_python(self):
         tmpl = get_template("saml")
         assert tmpl is not None
-        assert "storageState" in tmpl
-        assert "waitForURL" in tmpl
-        assert "process.env.TEST_USERNAME" in tmpl
-        assert "process.env.TEST_PASSWORD" in tmpl
+        assert "page.wait_for_url" in tmpl
+        assert 'os.environ.get("TEST_USERNAME"' in tmpl
+        assert 'os.environ.get("TEST_PASSWORD"' in tmpl
 
-    def test_get_template_ntlm_returns_typescript(self):
+    def test_get_template_ntlm_returns_python(self):
         tmpl = get_template("ntlm")
         assert tmpl is not None
-        assert "httpCredentials" in tmpl
-        assert "process.env.TEST_USERNAME" in tmpl
+        assert "http_credentials" in tmpl
+        assert 'os.environ.get("TEST_USERNAME"' in tmpl
 
-    def test_get_template_oidc_returns_typescript(self):
+    def test_get_template_oidc_returns_python(self):
         tmpl = get_template("oidc")
         assert tmpl is not None
-        assert "storageState" in tmpl
-        assert "waitForURL" in tmpl
+        assert "page.wait_for_url" in tmpl
+        assert "def sign_in_with_oidc" in tmpl
 
-    def test_get_template_logging_returns_typescript(self):
+    def test_get_template_logging_returns_python(self):
         tmpl = get_template("logging")
         assert tmpl is not None
-        assert "page.on('console'" in tmpl
-        assert "page.on('pageerror'" in tmpl
+        assert 'page.on("console"' in tmpl
+        assert 'page.on("pageerror"' in tmpl
         assert "page.route(" in tmpl
 
     def test_get_template_none_for_basic(self):
@@ -89,7 +88,7 @@ class TestAuthTemplatesModule:
         hint = get_auth_hint("saml")
         assert hint is not None
         assert "SAML" in hint
-        assert "storageState" in hint
+        assert "page.wait_for_url" in hint
 
     def test_get_auth_hint_ntlm(self):
         hint = get_auth_hint("ntlm")
@@ -143,24 +142,24 @@ class TestGenerateWithAuthType:
     def test_saml_hint_in_prompt(self):
         prompt = self._capture_prompt("saml")
         assert "SAML" in prompt
-        assert "storageState" in prompt
+        assert "page.wait_for_url" in prompt
 
     def test_saml_template_in_prompt(self):
         prompt = self._capture_prompt("saml")
-        # The TypeScript template snippet is injected as extra context
-        assert "global-setup" in prompt.lower() or "storageState" in prompt
+        assert "Reference Python template" in prompt
+        assert "sign_in_with_saml" in prompt
 
     def test_ntlm_hint_in_prompt(self):
         prompt = self._capture_prompt("ntlm")
-        assert "NTLM" in prompt or "httpCredentials" in prompt
+        assert "NTLM" in prompt or "http_credentials" in prompt
 
     def test_oidc_hint_in_prompt(self):
         prompt = self._capture_prompt("oidc")
-        assert "OIDC" in prompt or "storageState" in prompt
+        assert "OIDC" in prompt or "page.wait_for_url" in prompt
 
     def test_basic_hint_in_prompt(self):
         prompt = self._capture_prompt("basic")
-        assert "Basic" in prompt or "httpCredentials" in prompt
+        assert "Basic" in prompt or "http_credentials" in prompt
 
     def test_logging_hint_in_prompt(self):
         prompt = self._capture_prompt("logging")
@@ -210,17 +209,17 @@ class TestSecretRedaction:
     def test_hardcoded_password_replaced(self):
         code = self._gen_with_output('password = "s3cr3t-pass";')
         assert "s3cr3t-pass" not in code
-        assert "process.env.TEST_PASSWORD" in code
+        assert 'os.environ.get("TEST_PASSWORD", "")' in code
 
     def test_hardcoded_username_replaced(self):
         code = self._gen_with_output('username = "admin-user";')
         assert "admin-user" not in code
-        assert "process.env.TEST_USERNAME" in code
+        assert 'os.environ.get("TEST_USERNAME", "")' in code
 
     def test_env_var_reference_not_replaced(self):
-        original = 'password = process.env.TEST_PASSWORD;'
+        original = 'password = os.environ.get("TEST_PASSWORD", "");'
         code = self._gen_with_output(original)
-        assert "process.env.TEST_PASSWORD" in code
+        assert 'os.environ.get("TEST_PASSWORD", "")' in code
 
     def test_placeholder_value_not_replaced(self):
         original = 'password = "CHANGE_ME";'
@@ -272,11 +271,11 @@ class TestSAMLPipeline:
             auth_type="saml",
         )
         assert isinstance(test_code, str)
-        assert "@playwright/test" in test_code
+        assert "from playwright.sync_api import Page, expect" in test_code
         assert "page.goto" in test_code
 
-    def test_saml_prompt_contains_storagestate(self):
-        """The prompt sent to the LLM must reference storageState."""
+    def test_saml_prompt_contains_python_auth_context(self):
+        """The prompt sent to the LLM must reference Python auth helpers."""
         captured: list[str] = []
 
         class CapturingLLM:
@@ -289,6 +288,6 @@ class TestSAMLPipeline:
         gen.generate("SAML SSO login", auth_type="saml")
 
         assert captured
-        assert "storageState" in captured[0]
-        assert "waitForURL" in captured[0]
-        assert "process.env" in captured[0]
+        assert "sign_in_with_saml" in captured[0]
+        assert "page.wait_for_url" in captured[0]
+        assert "os.environ" in captured[0]

@@ -100,16 +100,17 @@ class TestSelfGenerate:
                 "playwright-god CLI: index a repository and generate a Playwright test",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
             ],
         )
         assert result.exit_code == 0
         output = result.output
-        assert "@playwright/test" in output
+        assert "from playwright.sync_api import Page, expect" in output
         assert "page.goto" in output
 
-    def test_generate_outputs_typescript(self, runner, self_index):
-        """Generated output should be valid TypeScript Playwright test structure."""
+    def test_generate_outputs_python(self, runner, self_index):
+        """Generated output should be valid Python Playwright test structure."""
         result = runner.invoke(
             cli,
             [
@@ -117,6 +118,7 @@ class TestSelfGenerate:
                 "index command and generate command of the playwright-god CLI tool",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
             ],
         )
@@ -124,13 +126,12 @@ class TestSelfGenerate:
         output = result.output
         # Must contain Playwright test structure
         assert "import" in output
-        assert "test(" in output or "test.describe(" in output
-        assert "async" in output
+        assert "def test_" in output
         assert "page" in output
 
     def test_generate_written_to_file(self, runner, self_index, tmp_path):
         """Generated test should be written to the -o output file."""
-        out_file = tmp_path / "self.spec.ts"
+        out_file = tmp_path / "self.spec.py"
         result = runner.invoke(
             cli,
             [
@@ -138,6 +139,7 @@ class TestSelfGenerate:
                 "crawler module that walks a repository directory tree",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
                 "-o", str(out_file),
             ],
@@ -146,7 +148,7 @@ class TestSelfGenerate:
         assert out_file.exists()
         content = out_file.read_text(encoding="utf-8")
         assert len(content) > 0
-        assert "@playwright/test" in content
+        assert "from playwright.sync_api import Page, expect" in content
 
     def test_generate_with_context_chunks(self, runner, self_index):
         """Requesting more context chunks should still produce valid output."""
@@ -157,9 +159,19 @@ class TestSelfGenerate:
                 "embedder and indexer modules used in the RAG pipeline",
                 "-d", self_index,
                 "-c", "self",
+                "--provider", "template",
                 "--mock-embedder",
                 "--n-context", "5",
             ],
         )
         assert result.exit_code == 0
-        assert "@playwright/test" in result.output
+        assert "from playwright.sync_api import Page, expect" in result.output
+
+    def test_index_outputs_feature_summary(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        result = runner.invoke(
+            cli,
+            ["index", str(REPO_ROOT), "-d", persist, "-c", "self", "--mock-embedder"],
+        )
+        assert result.exit_code == 0
+        assert "Feature areas inferred" in result.output

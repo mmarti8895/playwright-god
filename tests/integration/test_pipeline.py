@@ -67,7 +67,7 @@ class TestFullPipeline:
         )
         test_code = generator.generate("login form with email and password")
         assert isinstance(test_code, str)
-        assert "@playwright/test" in test_code
+        assert "from playwright.sync_api import Page, expect" in test_code
         assert "page.goto" in test_code
 
     def test_generate_includes_context_from_html(self, sample_repo_path):
@@ -119,11 +119,11 @@ class TestFullPipeline:
         from playwright_god.generator import LLMClient
 
         mock_llm = MagicMock(spec=LLMClient)
-        mock_llm.complete.return_value = "test('example', async ({ page }) => {});"
+        mock_llm.complete.return_value = "def test_example(page):\n    page.goto('http://localhost:3000')\n"
 
         indexer = self._build_indexer(sample_repo_path)
         gen = PlaywrightTestGenerator(llm_client=mock_llm, indexer=indexer)
         result = gen.generate("todo list CRUD operations")
 
         mock_llm.complete.assert_called_once()
-        assert result == "test('example', async ({ page }) => {});"
+        assert "def test_example" in result

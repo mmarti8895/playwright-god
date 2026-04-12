@@ -79,11 +79,11 @@ class TestTemplateLLMClient:
 
     def test_output_contains_playwright_import(self):
         result = self.client.complete("Description: user login")
-        assert "@playwright/test" in result
+        assert "from playwright.sync_api import Page, expect" in result
 
-    def test_output_contains_test_describe(self):
+    def test_output_contains_python_test_function(self):
         result = self.client.complete("Description: login page")
-        assert "test.describe" in result or "test(" in result
+        assert "def test_" in result
 
     def test_output_contains_page_goto(self):
         result = self.client.complete("Description: navigate to home page http://localhost:3000")
@@ -111,6 +111,16 @@ class TestTemplateLLMClient:
         )
         result = self.client.complete(prompt)
         assert "Name" in result or "fill" in result
+
+    def test_text_content_is_rendered_as_visible_assertions(self):
+        prompt = 'Description: landing page\nContext:\n<h1>Welcome "Home"</h1>'
+        result = self.client.complete(prompt)
+        assert 'expect(page.get_by_text("Welcome \\"Home\\"")).to_be_visible()' in result
+
+    def test_logging_description_adds_route_observer(self):
+        result = self.client.complete("Description: audit logging for delete action")
+        assert 'page.route("**/*", capture_route)' in result
+        assert 'page.on("pageerror"' in result
 
     def test_extract_description_from_prompt(self):
         desc = TemplateLLMClient._extract_description(
@@ -163,6 +173,13 @@ class TestTemplateLLMClient:
         assert TemplateLLMClient._slugify("hello world!") == "hello world"
         assert TemplateLLMClient._slugify("foo-bar_baz") == "foo bar baz"
 
+    def test_test_name_uses_fallback_when_slug_is_empty(self):
+        assert TemplateLLMClient._test_name("!!!", "fallback_name") == "test_fallback_name"
+
+    def test_generate_plan_without_file_paths_uses_generic_scenarios(self):
+        result = self.client.complete("Generate a Markdown test plan")
+        assert "Home page loads and key elements are visible" in result
+
 
 # ---------------------------------------------------------------------------
 # PlaywrightTestGenerator
@@ -193,11 +210,11 @@ class TestPlaywrightTestGeneratorGenerate:
 
     def test_uses_llm_client(self):
         mock_llm = MagicMock(spec=LLMClient)
-        mock_llm.complete.return_value = "// mock test"
+        mock_llm.complete.return_value = "# mock test"
         gen = PlaywrightTestGenerator(llm_client=mock_llm)
         result = gen.generate("test something")
         mock_llm.complete.assert_called_once()
-        assert result == "// mock test"
+        assert result == "# mock test"
 
     def test_generates_test_with_indexer(self):
         indexer = make_indexer_with_chunks(
@@ -215,9 +232,9 @@ class TestPlaywrightTestGeneratorGenerate:
         captured_prompts: list[str] = []
 
         class CapturingLLM(LLMClient):
-            def complete(self, prompt: str) -> str:
+            def complete(self, prompt: str, system_prompt: str | None = None) -> str:
                 captured_prompts.append(prompt)
-                return "// result"
+                return "# result"
 
         gen = PlaywrightTestGenerator(llm_client=CapturingLLM())
         gen.generate("the unique description XYZ")
@@ -228,7 +245,7 @@ class TestPlaywrightTestGeneratorGenerate:
         captured: list[str] = []
 
         class CapturingLLM(LLMClient):
-            def complete(self, prompt: str) -> str:
+            def complete(self, prompt: str, system_prompt: str | None = None) -> str:
                 captured.append(prompt)
                 return ""
 
@@ -240,7 +257,7 @@ class TestPlaywrightTestGeneratorGenerate:
         captured: list[str] = []
 
         class CapturingLLM(LLMClient):
-            def complete(self, prompt: str) -> str:
+            def complete(self, prompt: str, system_prompt: str | None = None) -> str:
                 captured.append(prompt)
                 return ""
 
@@ -248,6 +265,31 @@ class TestPlaywrightTestGeneratorGenerate:
         gen = PlaywrightTestGenerator(llm_client=CapturingLLM(), indexer=indexer)
         gen.generate("test something")
         assert "UNIQUE_CHUNK_CONTENT" in captured[0]
+
+    def test_auth_hint_and_extra_context_are_combined(self):
+        captured: list[str] = []
+
+        class CapturingLLM(LLMClient):
+            def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+                captured.append(prompt)
+                return ""
+
+        gen = PlaywrightTestGenerator(llm_client=CapturingLLM())
+        gen.generate("login flow", auth_type="saml", extra_context="CUSTOM_EXTRA")
+        assert "Reference Python template" in captured[0]
+        assert "CUSTOM_EXTRA" in captured[0]
+
+    def test_auth_hint_without_extra_context_is_included(self):
+        captured: list[str] = []
+
+        class CapturingLLM(LLMClient):
+            def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+                captured.append(prompt)
+                return ""
+
+        gen = PlaywrightTestGenerator(llm_client=CapturingLLM())
+        gen.generate("log capture", auth_type="logging")
+        assert "Logging or audit testing." in captured[0]
 
 
 class TestBuildPrompt:
@@ -271,6 +313,17 @@ class TestBuildPrompt:
         gen = PlaywrightTestGenerator()
         prompt = gen._build_prompt("desc", [], "EXTRA")
         assert "EXTRA" in prompt
+
+
+class TestSecretRedaction:
+    def test_redaction_adds_import_os_when_needed(self):
+        code = PlaywrightTestGenerator._redact_secrets('password = "plain-secret"')
+        assert code.startswith("import os")
+        assert 'os.environ.get("TEST_PASSWORD", "")' in code
+
+    def test_safe_values_are_not_replaced(self):
+        original = 'password = "CHANGE_ME"'
+        assert PlaywrightTestGenerator._redact_secrets(original) == original
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +435,21 @@ class TestGeminiClient:
         mock_genai.GenerativeModel.assert_called_once()
         call_kwargs = mock_genai.GenerativeModel.call_args
         assert call_kwargs[1]["model_name"] == "gemini-1.5-pro"
+
+    def test_complete_uses_cached_model_for_custom_system_prompt(self):
+        mock_genai = MagicMock()
+        mock_response = MagicMock()
+        mock_response.text = "custom"
+        mock_genai.GenerativeModel.return_value.generate_content.return_value = mock_response
+        mock_google = MagicMock()
+        mock_google.generativeai = mock_genai
+
+        with patch.dict("sys.modules", {"google": mock_google, "google.generativeai": mock_genai}):
+            client = GeminiClient(api_key="test-key")
+            result = client.complete("some prompt", system_prompt="CUSTOM SYSTEM")
+
+        assert result == "custom"
+        assert mock_genai.GenerativeModel.call_count == 2
 
 
 # ---------------------------------------------------------------------------

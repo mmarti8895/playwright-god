@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from playwright_god.crawler import FileInfo
+from playwright_god.crawler import RepositoryCrawler
 from playwright_god.chunker import Chunk
 from playwright_god.embedder import MockEmbedder
 from playwright_god.indexer import RepositoryIndexer
@@ -22,6 +23,12 @@ SAMPLE_APP_DIR = FIXTURES_DIR / "sample_app"
 def sample_repo_path() -> str:
     """Return the path to the sample app fixture directory."""
     return str(SAMPLE_APP_DIR)
+
+
+@pytest.fixture()
+def sample_repo_files(sample_repo_path: str) -> list[FileInfo]:
+    """Return all crawlable files from the sample repository fixture."""
+    return RepositoryCrawler().crawl(sample_repo_path)
 
 
 @pytest.fixture()

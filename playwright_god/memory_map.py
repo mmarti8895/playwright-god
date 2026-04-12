@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .chunker import Chunk
+from .feature_map import RepositoryFeatureMap
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +28,10 @@ from .chunker import Chunk
 # ---------------------------------------------------------------------------
 
 
-def build_memory_map(chunks: Sequence[Chunk]) -> dict:
+def build_memory_map(
+    chunks: Sequence[Chunk],
+    repository_feature_map: RepositoryFeatureMap | dict | None = None,
+) -> dict:
     """Build a memory map dict from a sequence of :class:`~playwright_god.chunker.Chunk` objects.
 
     Parameters
@@ -87,13 +91,16 @@ def build_memory_map(chunks: Sequence[Chunk]) -> dict:
             }
         )
 
-    return {
+    memory_map = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_files": len(files),
         "total_chunks": len(chunks),
         "languages": dict(lang_count),
         "files": files,
     }
+    if repository_feature_map is not None:
+        memory_map.update(_feature_map_payload(repository_feature_map))
+    return memory_map
 
 
 def save_memory_map(memory_map: dict, path: str) -> None:
@@ -193,4 +200,75 @@ def format_memory_map_for_prompt(memory_map: dict) -> str:
         lines.append(f"{path}  [{language}]")
         lines.append(f"  lines {ranges}")
 
+    feature_lines = _format_feature_sections(memory_map)
+    if feature_lines:
+        lines.extend(["", *feature_lines])
+
     return "\n".join(lines)
+
+
+def _feature_map_payload(repository_feature_map: RepositoryFeatureMap | dict) -> dict[str, object]:
+    if isinstance(repository_feature_map, RepositoryFeatureMap):
+        payload = repository_feature_map.to_dict()
+    else:
+        payload = dict(repository_feature_map)
+    return {
+        "schema_version": payload.get("schema_version", "2.0"),
+        "features": payload.get("features", []),
+        "correlations": payload.get("correlations", []),
+        "test_opportunities": payload.get("test_opportunities", []),
+        "source_root": payload.get("source_root", "."),
+    }
+
+
+def _format_feature_sections(memory_map: dict) -> list[str]:
+    feature_lines: list[str] = []
+    features = memory_map.get("features", [])
+    correlations = memory_map.get("correlations", [])
+    opportunities = memory_map.get("test_opportunities", [])
+
+    if isinstance(features, list) and features:
+        feature_lines.extend(["Feature areas", "-------------"])
+        for feature in features[:6]:
+            if not isinstance(feature, dict):
+                continue
+            name = feature.get("name", feature.get("feature_id", "unknown"))
+            confidence = feature.get("confidence", "?")
+            summary = feature.get("summary", "")
+            artifacts = feature.get("artifacts", [])
+            evidence_paths = ", ".join(
+                artifact.get("file_path", "?")
+                for artifact in artifacts[:3]
+                if isinstance(artifact, dict)
+            )
+            feature_lines.append(f"{name} [{confidence}]")
+            if summary:
+                feature_lines.append(f"  {summary}")
+            if evidence_paths:
+                feature_lines.append(f"  evidence: {evidence_paths}")
+
+    if isinstance(correlations, list) and correlations:
+        if feature_lines:
+            feature_lines.append("")
+        feature_lines.extend(["Feature correlations", "--------------------"])
+        for correlation in correlations[:6]:
+            if not isinstance(correlation, dict):
+                continue
+            source = correlation.get("source_feature_id", "?")
+            target = correlation.get("target_feature_id", "?")
+            relation = correlation.get("relationship_type", "related")
+            feature_lines.append(f"{source} -> {target} [{relation}]")
+
+    if isinstance(opportunities, list) and opportunities:
+        if feature_lines:
+            feature_lines.append("")
+        feature_lines.extend(["Suggested test opportunities", "----------------------------"])
+        for opportunity in opportunities[:8]:
+            if not isinstance(opportunity, dict):
+                continue
+            title = opportunity.get("title", "Unknown scenario")
+            feature_id = opportunity.get("feature_id", "?")
+            confidence = opportunity.get("confidence", "?")
+            feature_lines.append(f"{feature_id}: {title} [{confidence}]")
+
+    return feature_lines

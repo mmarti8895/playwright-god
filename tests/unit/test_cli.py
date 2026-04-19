@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from playwright_god.cli import cli, main
+from playwright_god.runner import RunResult
 
 
 # Variables that the CLI's provider-resolution logic reads from the environment.
@@ -1056,7 +1057,6 @@ class TestRunCommand:
     def test_run_accepts_directory_spec_path(self, runner, tmp_path):
         spec_dir = tmp_path / "tests"
         spec_dir.mkdir()
-        from playwright_god.runner import RunResult
 
         fake = RunResult(
             status="passed",

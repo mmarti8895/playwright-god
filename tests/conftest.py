@@ -23,7 +23,7 @@ def _has_playwright_test() -> bool:
         return False
     try:
         completed = subprocess.run(
-            ["npx", "--no-install", "playwright", "--version"],
+            ["npx", "--no-install", "playwright", "test", "--version"],
             check=False,
             capture_output=True,
             text=True,

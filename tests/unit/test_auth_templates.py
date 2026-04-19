@@ -5,16 +5,16 @@ from __future__ import annotations
 from playwright_god.auth_templates import AUTH_TYPES, get_auth_hint, get_template
 
 
-def test_get_template_returns_expected_python_snippets():
+def test_get_template_returns_expected_typescript_snippets():
     saml = get_template("saml")
     ntlm = get_template("ntlm")
     oidc = get_template("oidc")
     logging = get_template("logging")
 
-    assert saml is not None and "sign_in_with_saml" in saml
-    assert ntlm is not None and "http_credentials" in ntlm
-    assert oidc is not None and "sign_in_with_oidc" in oidc
-    assert logging is not None and "capture_route" in logging
+    assert saml is not None and "signInWithSaml" in saml
+    assert ntlm is not None and "httpCredentials" in ntlm
+    assert oidc is not None and "signInWithOidc" in oidc
+    assert logging is not None and "auditRequests" in logging
 
 
 def test_get_template_is_case_insensitive_and_handles_missing_values():

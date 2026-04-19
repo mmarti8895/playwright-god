@@ -176,7 +176,7 @@ class TestLoggingPipeline:
         )
         test_code = generator.generate("audit logging for delete action")
         assert isinstance(test_code, str)
-        assert "from playwright.sync_api import Page, expect" in test_code
+        assert 'import { test, expect } from "@playwright/test";' in test_code
         assert "page.goto" in test_code
 
     def test_logging_pipeline_with_auth_type(self):

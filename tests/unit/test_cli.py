@@ -136,11 +136,11 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "from playwright.sync_api import Page, expect" in result.output
+        assert 'import { test, expect } from "@playwright/test";' in result.output
 
     def test_generate_writes_output_file(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
-        output_file = str(tmp_path / "test.spec.py")
+        output_file = str(tmp_path / "test.spec.ts")
 
         with (
             patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
@@ -164,7 +164,7 @@ class TestGenerateCommand:
         assert Path(output_file).exists()
         content = Path(output_file).read_text()
         assert len(content) > 0
-        assert "def test_" in content
+        assert 'test("' in content
 
     def test_generate_rejects_directory_output_path(self, runner, tmp_path):
         result = runner.invoke(
@@ -229,7 +229,7 @@ class TestGenerateCommand:
                 ["generate", "test something", "-d", persist, "--provider", "template"],
             )
         assert result.exit_code == 0
-        assert "from playwright.sync_api import Page, expect" in result.output
+        assert 'import { test, expect } from "@playwright/test";' in result.output
 
     def test_generate_openai_provider_selected(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
@@ -487,7 +487,7 @@ class TestGenerateCommand:
 
         assert result.exit_code == 0
         assert "Memory map loaded" in result.stderr
-        assert "from playwright.sync_api import Page, expect" in result.output
+        assert 'import { test, expect } from "@playwright/test";' in result.output
         # must NOT produce a Markdown plan
         assert "# Playwright Test Plan" not in result.output
 
@@ -555,7 +555,7 @@ class TestGenerateCommand:
         assert result.exit_code == 0
         called_prompt = mock_client.complete.call_args[0][0]
         assert "issuer" in called_prompt
-        assert 'os.environ.get("TEST_USERNAME", "")' in called_prompt
+        assert 'process.env.TEST_USERNAME ?? ""' in called_prompt
         assert "Auth type: saml" in result.stderr
 
     def test_generate_warns_when_auth_config_cannot_be_read(self, runner, tmp_path):
@@ -974,4 +974,3 @@ def test_main_invokes_cli():
     with patch("playwright_god.cli.cli") as mock_cli:
         main()
     mock_cli.assert_called_once()
-

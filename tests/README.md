@@ -17,7 +17,7 @@ This directory contains deterministic validation for the `playwright-god` CLI, r
 
 The suite now validates:
 
-- Python Playwright output from the offline template generator
+- TypeScript Playwright output from the offline template generator
 - feature-aware repository summaries and correlations
 - saved memory-map reuse
 - auth and logging prompt helpers

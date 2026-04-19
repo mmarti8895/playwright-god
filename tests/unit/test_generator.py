@@ -79,11 +79,11 @@ class TestTemplateLLMClient:
 
     def test_output_contains_playwright_import(self):
         result = self.client.complete("Description: user login")
-        assert "from playwright.sync_api import Page, expect" in result
+        assert 'import { test, expect } from "@playwright/test";' in result
 
-    def test_output_contains_python_test_function(self):
+    def test_output_contains_typescript_test_block(self):
         result = self.client.complete("Description: login page")
-        assert "def test_" in result
+        assert 'test("' in result
 
     def test_output_contains_page_goto(self):
         result = self.client.complete("Description: navigate to home page http://localhost:3000")
@@ -115,12 +115,23 @@ class TestTemplateLLMClient:
     def test_text_content_is_rendered_as_visible_assertions(self):
         prompt = 'Description: landing page\nContext:\n<h1>Welcome "Home"</h1>'
         result = self.client.complete(prompt)
-        assert 'expect(page.get_by_text("Welcome \\"Home\\"")).to_be_visible()' in result
+        assert 'await expect(page.getByText("Welcome \\"Home\\"")).toBeVisible();' in result
 
     def test_logging_description_adds_route_observer(self):
         result = self.client.complete("Description: audit logging for delete action")
-        assert 'page.route("**/*", capture_route)' in result
+        assert 'await page.route("**/*", async (route) => {' in result
         assert 'page.on("pageerror"' in result
+
+    def test_plan_detection_does_not_trigger_from_context_only(self):
+        prompt = (
+            "Description: test login flow\n\n"
+            "Context (relevant repository code):\n"
+            "some helper text mentioning Generate a Markdown test plan inside a source file\n\n"
+            "============================================================\n"
+            "Write a comprehensive TypeScript Playwright test suite for the description above."
+        )
+        result = self.client.complete(prompt)
+        assert 'import { test, expect } from "@playwright/test";' in result
 
     def test_extract_description_from_prompt(self):
         desc = TemplateLLMClient._extract_description(
@@ -276,7 +287,7 @@ class TestPlaywrightTestGeneratorGenerate:
 
         gen = PlaywrightTestGenerator(llm_client=CapturingLLM())
         gen.generate("login flow", auth_type="saml", extra_context="CUSTOM_EXTRA")
-        assert "Reference Python template" in captured[0]
+        assert "Reference TypeScript template" in captured[0]
         assert "CUSTOM_EXTRA" in captured[0]
 
     def test_auth_hint_without_extra_context_is_included(self):
@@ -316,10 +327,9 @@ class TestBuildPrompt:
 
 
 class TestSecretRedaction:
-    def test_redaction_adds_import_os_when_needed(self):
+    def test_redaction_uses_process_env_placeholders(self):
         code = PlaywrightTestGenerator._redact_secrets('password = "plain-secret"')
-        assert code.startswith("import os")
-        assert 'os.environ.get("TEST_PASSWORD", "")' in code
+        assert 'process.env.TEST_PASSWORD ?? ""' in code
 
     def test_safe_values_are_not_replaced(self):
         original = 'password = "CHANGE_ME"'
@@ -511,4 +521,3 @@ class TestOllamaClient:
         roles = [m["role"] for m in payload["messages"]]
         assert roles == ["system", "user"]
         assert payload["messages"][1]["content"] == "user message"
-

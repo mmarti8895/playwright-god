@@ -12,6 +12,29 @@ from click.testing import CliRunner
 from playwright_god.cli import cli, main
 
 
+# Variables that the CLI's provider-resolution logic reads from the environment.
+# Cleared automatically before every test so that the developer's local `.env`
+# (loaded by `load_dotenv` at `cli` import time) cannot influence assertions.
+_LLM_ENV_VARS = (
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GOOGLE_API_KEY",
+    "PLAYWRIGHT_GOD_PROVIDER",
+    "PLAYWRIGHT_GOD_MODEL",
+    "OLLAMA_URL",
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_llm_env(monkeypatch):
+    """Ensure CLI tests run with no LLM provider env vars set.
+
+    Tests that need a key set should call `monkeypatch.setenv(...)` themselves.
+    """
+    for var in _LLM_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+
 @pytest.fixture()
 def runner():
     return CliRunner()

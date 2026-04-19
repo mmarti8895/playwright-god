@@ -156,20 +156,67 @@ This format is meant to stay compact: it keeps file/chunk inventory plus evidenc
 
 ## Providers
 
-Auto-detection order when `--provider` is omitted:
+### Configuration via `.env` File
 
-1. `OPENAI_API_KEY`
-2. `ANTHROPIC_API_KEY`
-3. `GOOGLE_API_KEY`
-4. offline template fallback
+Copy `example.env` to `.env` and configure your LLM provider:
 
-Supported providers:
+```bash
+cp example.env .env
+```
 
-- `openai`
-- `anthropic`
-- `gemini`
-- `ollama`
-- `template`
+> ⚠️ **Never commit `.env`.** It is already listed in `.gitignore`. The repo also ships
+> a `gitleaks` pre-commit hook and CI scan to block accidental key commits — see
+> [Secret Hygiene](#secret-hygiene) below.
+
+Edit `.env` to set your preferred provider and API key:
+
+```bash
+# Select your provider
+PLAYWRIGHT_GOD_PROVIDER=openai
+
+# Optionally override the default model
+PLAYWRIGHT_GOD_MODEL=gpt-4o
+
+# Set your API key
+OPENAI_API_KEY=sk-...
+```
+
+### Configuration Priority
+
+Settings are resolved in this order (highest priority first):
+
+1. **CLI arguments** (`--provider`, `--model`, `--api-key`, `--ollama-url`)
+2. **`.env` file** (`PLAYWRIGHT_GOD_PROVIDER`, `PLAYWRIGHT_GOD_MODEL`, `OLLAMA_URL`)
+3. **Environment variables** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`)
+4. **Fallback** to offline `template` generator
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `PLAYWRIGHT_GOD_PROVIDER` | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template` |
+| `PLAYWRIGHT_GOD_MODEL` | Model name (overrides provider default) |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `GOOGLE_API_KEY` | Google AI (Gemini) API key |
+| `OLLAMA_URL` | Ollama server URL (default: `http://localhost:11434`) |
+
+### Auto-detection
+
+When `--provider` is omitted and `PLAYWRIGHT_GOD_PROVIDER` is not set, the CLI auto-detects based on available API keys:
+
+1. `OPENAI_API_KEY` → `openai`
+2. `ANTHROPIC_API_KEY` → `anthropic`
+3. `GOOGLE_API_KEY` → `gemini`
+4. Fallback → offline `template` generator
+
+### Supported Providers
+
+- `openai` (default model: `gpt-4o`)
+- `anthropic` (default model: `claude-3-5-sonnet-20241022`)
+- `gemini` (default model: `gemini-1.5-pro`)
+- `ollama` (default model: `llama3`)
+- `template` (offline fallback)
 
 ## Development
 
@@ -195,10 +242,10 @@ pytest --cov=playwright_god --cov-report=term-missing
 
 ## Current Coverage
 
-Most recent verification in this workspace on April 18, 2026:
+Most recent verification in this workspace on April 19, 2026:
 
-- `tests/unit` + `tests/integration`: `304 passed`
-- package coverage for `playwright_god`: `98%` (`1038` statements, `20` missed)
+- `tests/unit` + `tests/integration`: `312 passed`
+- package coverage for `playwright_god`: `99%` (`1052` statements, `2` missed)
 
 Per-module coverage from that run:
 
@@ -207,12 +254,12 @@ Per-module coverage from that run:
 | `playwright_god/__init__.py` | `100%` |
 | `playwright_god/auth_templates.py` | `100%` |
 | `playwright_god/chunker.py` | `100%` |
-| `playwright_god/cli.py` | `100%` |
-| `playwright_god/crawler.py` | `97%` |
-| `playwright_god/embedder.py` | `65%` |
+| `playwright_god/cli.py` | `99%` |
+| `playwright_god/crawler.py` | `100%` |
+| `playwright_god/embedder.py` | `100%` |
 | `playwright_god/feature_map.py` | `100%` |
 | `playwright_god/generator.py` | `100%` |
-| `playwright_god/indexer.py` | `97%` |
+| `playwright_god/indexer.py` | `100%` |
 | `playwright_god/memory_map.py` | `100%` |
 
 Notes:
@@ -239,6 +286,31 @@ tests/
   e2e/
   fixtures/
 ```
+
+## Secret Hygiene
+
+This project takes API key safety seriously. Multiple layers of protection are in place:
+
+1. **`.gitignore`** — `.env` and all `.env.*` variants are blocked from commits (only `example.env` is allowed).
+2. **Pre-commit hook** — install once and `gitleaks` will scan every commit locally:
+
+   ```bash
+   make install-dev          # installs deps + pre-commit hooks
+   # or manually:
+   pip install pre-commit && pre-commit install
+   make scan-secrets         # one-off scan of the working tree
+   make scan-secrets-history # scan full git history
+   ```
+
+3. **CI scan** — `.github/workflows/secret-scan.yml` runs `gitleaks` on every push, PR, and weekly on the full history.
+4. **Output redaction** — the test generator scrubs hardcoded credentials from generated `.spec.ts` files, replacing them with `process.env.*` references (see `_SECRET_PATTERNS` in `playwright_god/generator.py`).
+5. **Usage caps** — set per-key spend limits in your provider dashboard (e.g. OpenAI → Limits) so a leak cannot drain your account.
+
+### If a key is exposed
+
+1. **Revoke it immediately** at the provider dashboard.
+2. Issue a new key and update your local `.env`.
+3. If the key was committed, scrub git history with [`git-filter-repo`](https://github.com/newren/git-filter-repo) **and** force-push — but treat the key as compromised regardless, because mirrors and caches may have already pulled it.
 
 ## License
 

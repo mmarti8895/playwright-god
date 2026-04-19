@@ -12,6 +12,7 @@ license = { text = "MIT" }
 dependencies = [
     "chromadb>=0.5",
     "click>=8.1",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]

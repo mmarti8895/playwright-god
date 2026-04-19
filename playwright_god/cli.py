@@ -7,6 +7,12 @@ import sys
 from pathlib import Path
 
 import click
+from dotenv import load_dotenv
+
+# Load .env file if it exists.
+# `override=False` ensures shell/CI environment variables take precedence over .env,
+# which is important for test isolation and for CI overrides to work as expected.
+load_dotenv(override=False)
 
 from .chunker import FileChunker
 from .crawler import FileInfo, RepositoryCrawler
@@ -27,6 +33,61 @@ from .memory_map import (
     load_memory_map,
     save_memory_map,
 )
+
+
+def _resolve_provider_config(
+    provider: str | None,
+    model: str | None,
+    api_key: str | None,
+    ollama_url: str,
+) -> tuple[str, str | None, str | None, str]:
+    """Resolve LLM provider configuration from CLI args, env vars, and defaults.
+
+    Priority order (highest to lowest):
+    1. Explicit CLI arguments (--provider, --model, --api-key, --ollama-url)
+    2. PLAYWRIGHT_GOD_* environment variables from .env or shell
+    3. Provider-specific API key env vars (OPENAI_API_KEY, etc.) for auto-detection
+    4. Fallback to "template" provider
+
+    Returns:
+        Tuple of (provider, model, api_key, ollama_url)
+    """
+    # Resolve provider: CLI arg > PLAYWRIGHT_GOD_PROVIDER env > auto-detect from API keys
+    resolved_provider = provider
+    if resolved_provider is None:
+        env_provider = os.environ.get("PLAYWRIGHT_GOD_PROVIDER", "").strip().lower()
+        if env_provider in ("openai", "anthropic", "gemini", "ollama", "template"):
+            resolved_provider = env_provider
+
+    # If still no provider, auto-detect from API keys
+    if resolved_provider is None:
+        if api_key or os.environ.get("OPENAI_API_KEY"):
+            resolved_provider = "openai"
+        elif os.environ.get("ANTHROPIC_API_KEY"):
+            resolved_provider = "anthropic"
+        elif os.environ.get("GOOGLE_API_KEY"):
+            resolved_provider = "gemini"
+        else:
+            resolved_provider = "template"
+
+    # Resolve model: CLI arg > PLAYWRIGHT_GOD_MODEL env > provider default (handled later)
+    resolved_model = model
+    if resolved_model is None:
+        env_model = os.environ.get("PLAYWRIGHT_GOD_MODEL", "").strip()
+        if env_model:
+            resolved_model = env_model
+
+    # Resolve API key: CLI arg > existing env vars (already loaded by dotenv)
+    resolved_api_key = api_key  # CLI arg takes precedence, env vars already in os.environ
+
+    # Resolve Ollama URL: CLI arg (if non-default) > OLLAMA_URL env > default
+    resolved_ollama_url = ollama_url
+    if ollama_url == "http://localhost:11434":  # default value, check env
+        env_ollama_url = os.environ.get("OLLAMA_URL", "").strip()
+        if env_ollama_url:
+            resolved_ollama_url = env_ollama_url
+
+    return resolved_provider, resolved_model, resolved_api_key, resolved_ollama_url
 
 
 @click.group()
@@ -338,15 +399,10 @@ def generate(
             err=True,
         )
 
-    if provider is None:
-        if api_key or os.environ.get("OPENAI_API_KEY"):
-            provider = "openai"
-        elif os.environ.get("ANTHROPIC_API_KEY"):
-            provider = "anthropic"
-        elif os.environ.get("GOOGLE_API_KEY"):
-            provider = "gemini"
-        else:
-            provider = "template"
+    # Resolve provider config from CLI args, env vars, and defaults
+    provider, model, api_key, ollama_url = _resolve_provider_config(
+        provider, model, api_key, ollama_url
+    )
 
     llm_client: OpenAIClient | AnthropicClient | GeminiClient | OllamaClient | TemplateLLMClient
     if provider == "openai":
@@ -588,15 +644,10 @@ def plan(
 
     memory_map_text = format_memory_map_for_prompt(map_data)
 
-    if provider is None:
-        if api_key or os.environ.get("OPENAI_API_KEY"):
-            provider = "openai"
-        elif os.environ.get("ANTHROPIC_API_KEY"):
-            provider = "anthropic"
-        elif os.environ.get("GOOGLE_API_KEY"):
-            provider = "gemini"
-        else:
-            provider = "template"
+    # Resolve provider config from CLI args, env vars, and defaults
+    provider, model, api_key, ollama_url = _resolve_provider_config(
+        provider, model, api_key, ollama_url
+    )
 
     llm_client: OpenAIClient | AnthropicClient | GeminiClient | OllamaClient | TemplateLLMClient
     if provider == "openai":

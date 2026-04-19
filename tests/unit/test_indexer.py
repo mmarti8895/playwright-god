@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from unittest.mock import patch
+
 import pytest
 
 from playwright_god.chunker import Chunk
@@ -184,3 +187,13 @@ class TestGetChunkStubs:
         assert len(stubs) == 1
         assert stubs[0].start_line == 0
         assert stubs[0].end_line == 0
+
+
+class TestChromaImportError:
+    """Cover the `except ImportError` branch when chromadb isn't installed."""
+
+    def test_indexer_raises_import_error_with_install_hint(self):
+        # Setting the module to None makes `import chromadb` raise ImportError.
+        with patch.dict(sys.modules, {"chromadb": None}):
+            with pytest.raises(ImportError, match="pip install chromadb"):
+                RepositoryIndexer()

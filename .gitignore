@@ -3,6 +3,22 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Environment variables (secrets) — block ALL env files except example.env
+.env
+.env.*
+!example.env
+!.env.example
+.envrc
+
+# playwright-god runtime artifacts (indexes, generated outputs)
+.idx/
+.pg_self_index/
+.playwright_god_index/
+generated_tests/
+generated_self_tests/
+generated_cli_test_plan.md
+pg_self_test_plan.md
+
 # C extensions
 *.so
 
@@ -182,9 +198,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  and can be added to the global gitignore or merged into this file. However, if you prefer,
 #  you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 

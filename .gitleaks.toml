@@ -1,0 +1,46 @@
+# gitleaks config — project-specific rules for LLM API keys
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+title = "playwright-god gitleaks config"
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API key (sk-... or sk-proj-...)"
+regex = '''sk-(proj-)?[A-Za-z0-9_-]{20,}'''
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9_-]{20,}'''
+
+[[rules]]
+id = "google-api-key"
+description = "Google API key"
+regex = '''AIza[0-9A-Za-z_-]{35}'''
+
+[[rules]]
+id = "generic-api-key-assignment"
+description = "Generic API_KEY=... or SECRET=... with a non-empty value"
+regex = '''(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['"]?([A-Za-z0-9_\-]{16,})['"]?'''
+
+# Allow placeholders / docs / examples
+[allowlist]
+description = "Ignore example files and obvious placeholders"
+paths = [
+    '''(^|/)example\.env$''',
+    '''(^|/)\.env\.example$''',
+    '''(^|/)README\.md$''',
+    '''(^|/)docs/.*''',
+    '''(^|/)tests/.*''',
+    '''(^|/)openspec/.*''',
+    '''(^|/)specs/.*''',
+    '''(^|/)\.github/.*''',
+]
+regexes = [
+    '''YOUR_.*KEY''',
+    '''<.*KEY.*>''',
+    '''sk-proj-XXXX.*''',
+    '''CHANGE_ME''',
+    '''PLACEHOLDER''',
+    '''sk-test-[A-Za-z0-9_-]+''',
+    '''sk-fake-[A-Za-z0-9_-]+''',
+]

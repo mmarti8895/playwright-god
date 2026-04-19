@@ -1,0 +1,32 @@
+# Pre-commit hooks to catch secrets and config issues before they reach git.
+# Install once:  pip install pre-commit && pre-commit install
+# Run manually:  pre-commit run --all-files
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: Detect hardcoded secrets (gitleaks)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+        exclude: '^scripts/.*\.sh$'
+      - id: trailing-whitespace
+        exclude: '^scripts/.*\.sh$'
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+
+  # Block accidental .env commits explicitly
+  - repo: local
+    hooks:
+      - id: forbid-env-files
+        name: Block committing .env files
+        entry: scripts/forbid-env-files.sh
+        language: script
+        files: '(^|/)\.env($|\..+)'
+        exclude: '(^|/)example\.env$|(^|/)\.env\.example$'

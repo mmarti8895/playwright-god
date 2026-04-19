@@ -1,0 +1,46 @@
+{
+  "frontend_v8": [
+    {
+      "url": "http://localhost:3000/static/app.js",
+      "source": "function login(u, p) {\n  if (!u) return false;\n  if (!p) return false;\n  return true;\n}\nfunction logout() {\n  return true;\n}\n",
+      "functions": [
+        {
+          "functionName": "login",
+          "ranges": [
+            {"startOffset": 0, "endOffset": 90, "count": 3}
+          ]
+        },
+        {
+          "functionName": "logout",
+          "ranges": [
+            {"startOffset": 91, "endOffset": 130, "count": 0}
+          ]
+        }
+      ]
+    }
+  ],
+  "backend_python": {
+    "files": {
+      "src/api/users.py": {
+        "executed_lines": [1, 2, 4, 7],
+        "missing_lines": [3, 5, 6],
+        "summary": {
+          "num_statements": 7,
+          "covered_lines": 4,
+          "missing_lines": 3,
+          "percent_covered": 57.14
+        }
+      },
+      "src/api/auth.py": {
+        "executed_lines": [1, 2, 3],
+        "missing_lines": [],
+        "summary": {
+          "num_statements": 3,
+          "covered_lines": 3,
+          "missing_lines": 0,
+          "percent_covered": 100.0
+        }
+      }
+    }
+  }
+}

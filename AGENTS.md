@@ -43,6 +43,13 @@ Run coverage:
 pytest --cov=playwright_god --cov-report=term-missing
 ```
 
+## Capabilities
+
+- `playwright-god index <repo>` — crawl, chunk, embed, and (optionally) emit a memory map
+- `playwright-god generate <description>` — RAG-driven Playwright test generation; add `--run` to execute the generated spec immediately
+- `playwright-god plan` — derive a Markdown test plan from an index/memory map
+- `playwright-god run <spec>` — execute a generated `*.spec.ts` via `npx playwright test --reporter=json`, persist artifacts under `<artifact-dir>/<UTC-timestamp>/`, and exit non-zero on failure or setup error. Requires Node 18+ and `@playwright/test` installed in the target project.
+
 ## Conventions
 
 - Generated Playwright code should target Python sync API patterns.

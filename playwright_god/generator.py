@@ -9,36 +9,9 @@ import textwrap
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence
 
+from ._secrets import _SAFE_VALUES, _SECRET_PATTERNS  # re-exported for back-compat
 from .auth_templates import get_auth_hint, get_template
 from .indexer import RepositoryIndexer, SearchResult
-
-_SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (
-        re.compile(r"""(password\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1process.env.TEST_PASSWORD ?? ""',
-    ),
-    (
-        re.compile(r"""((?:username|user)\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1process.env.TEST_USERNAME ?? ""',
-    ),
-    (
-        re.compile(r"""(api[_-]?key\s*[=:]\s*)(['"])([^'"]{8,})(\2)""", re.IGNORECASE),
-        r'\1process.env.API_KEY ?? ""',
-    ),
-    (
-        re.compile(r"""((?:access_?)?token\s*[=:]\s*)(['"])([^'"]{8,})(\2)""", re.IGNORECASE),
-        r'\1process.env.ACCESS_TOKEN ?? ""',
-    ),
-    (
-        re.compile(r"""(secret\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1process.env.SECRET ?? ""',
-    ),
-]
-
-_SAFE_VALUES: re.Pattern[str] = re.compile(
-    r"os\.environ|getenv|process\.env|<[A-Z_]+>|YOUR_|PLACEHOLDER|EXAMPLE|CHANGE_ME",
-    re.IGNORECASE,
-)
 
 
 class LLMClient(ABC):
@@ -503,6 +476,13 @@ class PlaywrightTestGenerator:
         extra_context: str | None = None,
         auth_type: str | None = None,
         redact_secrets: bool = True,
+        uncovered_excerpts: Sequence[tuple[str, int, int, str]] | None = None,
+        uncovered_cap: int = 12,
+        failure_excerpt: str | None = None,
+        coverage_delta: "object | None" = None,
+        flow_graph: "object | None" = None,
+        flow_graph_cap: int = 5,
+        seed_spec_content: str | None = None,
     ) -> str:
         context_chunks: list[SearchResult] = []
         if self.indexer is not None:
@@ -526,13 +506,68 @@ class PlaywrightTestGenerator:
         elif auth_extra:
             combined_extra = auth_extra
 
+        if uncovered_excerpts:
+            gap_block = self._format_uncovered_block(
+                uncovered_excerpts, cap=uncovered_cap
+            )
+            if gap_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + gap_block) if combined_extra else gap_block
+                )
+
+        if failure_excerpt:
+            failure_block = self._format_failure_excerpt(failure_excerpt)
+            if failure_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + failure_block)
+                    if combined_extra
+                    else failure_block
+                )
+
+        if coverage_delta:
+            delta_block = self._format_coverage_delta_addendum(coverage_delta)
+            if delta_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + delta_block)
+                    if combined_extra
+                    else delta_block
+                )
+
+        if flow_graph is not None:
+            graph_block = self._format_flow_graph_subgraph(
+                flow_graph, description, cap=flow_graph_cap
+            )
+            if graph_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + graph_block)
+                    if combined_extra
+                    else graph_block
+                )
+
+        if seed_spec_content is not None:
+            seed_block = self._format_seed_spec(seed_spec_content)
+            if seed_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + seed_block)
+                    if combined_extra
+                    else seed_block
+                )
+
         prompt = self._build_prompt(description, context_chunks, combined_extra)
         result = self.llm_client.complete(prompt)
         if redact_secrets:
             result = self._redact_secrets(result)
         return result
 
-    def plan(self, memory_map_text: str, focus: str | None = None) -> str:
+    def plan(
+        self,
+        memory_map_text: str,
+        focus: str | None = None,
+        *,
+        coverage: dict | None = None,
+        prioritize: str = "absolute",
+        flow_graph: "object | None" = None,
+    ) -> str:
         parts: list[str] = [
             "Below is a memory map of the indexed repository. Use it to propose a comprehensive Playwright test plan.",
             "",
@@ -542,12 +577,314 @@ class PlaywrightTestGenerator:
         ]
         if focus:
             parts += [f"Focus area: {focus}", ""]
+
+        if coverage:
+            delta = self._format_coverage_delta(
+                coverage, prioritize=prioritize, flow_graph=flow_graph
+            )
+            if delta:
+                parts += [delta, ""]
+
+        if flow_graph is not None:
+            graph_summary = self._format_flow_graph_for_plan(
+                flow_graph, coverage=coverage
+            )
+            if graph_summary:
+                parts += [graph_summary, ""]
+
         parts += [
             "Generate a Markdown test plan. For each feature area list specific, actionable test scenarios in plain English.",
         ]
+        if coverage:
+            parts += [
+                "Include a `## Coverage Delta` section that lists the highest-priority "
+                "uncovered files and the scenarios that would close those gaps.",
+            ]
+        if flow_graph is not None:
+            parts += [
+                "When a flow graph is supplied, annotate each feature area with the "
+                "uncovered routes and actions it should target.",
+            ]
         return self.llm_client.complete(
             "\n".join(parts),
             system_prompt=PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT,
+        )
+
+    @staticmethod
+    def _format_coverage_delta(
+        coverage: dict,
+        *,
+        prioritize: str = "absolute",
+        flow_graph: "object | None" = None,
+    ) -> str:
+        """Format a `Coverage Delta` block listing prioritised uncovered files."""
+
+        files = coverage.get("files") or []
+        if not files:
+            return ""
+
+        # When prioritising by routes, order files by how many uncovered routes
+        # cite them as handler evidence.
+        route_weight: dict[str, int] = {}
+        if prioritize == "routes" and flow_graph is not None:
+            uncovered_route_ids: set[str] = set()
+            cov_routes = (coverage.get("routes") or {}) if isinstance(coverage, dict) else {}
+            if isinstance(cov_routes, dict):
+                uncovered_route_ids = set(cov_routes.get("uncovered") or [])
+            for route in getattr(flow_graph, "routes", ()) or ():
+                if uncovered_route_ids and route.id not in uncovered_route_ids:
+                    continue
+                for ev in getattr(route, "evidence", ()) or ():
+                    f = getattr(ev, "file", None)
+                    if f:
+                        route_weight[f] = route_weight.get(f, 0) + 1
+
+        def _key(entry: dict):
+            uncovered = len(entry.get("uncovered_lines") or [])
+            percent = float(entry.get("percent", 100.0))
+            if prioritize == "percent":
+                return (percent, -uncovered)
+            if prioritize == "routes":
+                # Highest route-weight first (most uncovered routes touching this file).
+                return (-route_weight.get(entry.get("path", ""), 0), -uncovered, percent)
+            return (-uncovered, percent)
+
+        ranked = sorted(
+            (e for e in files if isinstance(e, dict) and e.get("uncovered_lines")),
+            key=_key,
+        )
+        if not ranked:
+            return ""
+
+        summary = coverage.get("summary") or {}
+        lines: list[str] = ["## Coverage Delta"]
+        if summary:
+            lines.append(
+                f"Overall: {summary.get('percent', 0.0)}% covered "
+                f"({summary.get('covered_lines', 0)}/"
+                f"{summary.get('covered_lines', 0) + summary.get('uncovered_lines', 0)} lines, "
+                f"{summary.get('files', 0)} files)."
+            )
+        lines.append("")
+        lines.append(f"Prioritised by: {prioritize}")
+        lines.append("")
+        for entry in ranked[:12]:
+            uncovered = entry.get("uncovered_lines") or []
+            extra = ""
+            if prioritize == "routes":
+                w = route_weight.get(entry.get("path", ""), 0)
+                if w:
+                    extra = f", {w} uncovered route(s)"
+            lines.append(
+                f"- `{entry.get('path', '?')}` — {entry.get('percent', 0.0)}% "
+                f"covered, {len(uncovered)} uncovered line(s){extra}"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_flow_graph_for_plan(
+        flow_graph: "object | None",
+        *,
+        coverage: dict | None = None,
+    ) -> str:
+        """Annotate the plan prompt with a flow-graph summary.
+
+        When *coverage* contains a ``routes`` block, uncovered routes are
+        called out explicitly so the planner can drive scenarios at them.
+        """
+
+        if flow_graph is None:
+            return ""
+        routes = tuple(getattr(flow_graph, "routes", ()) or ())
+        actions = tuple(getattr(flow_graph, "actions", ()) or ())
+        if not routes and not actions:
+            return ""
+        uncovered_ids: set[str] = set()
+        has_routes_block = False
+        if isinstance(coverage, dict):
+            cov_routes = coverage.get("routes") or {}
+            if isinstance(cov_routes, dict) and "uncovered" in cov_routes:
+                has_routes_block = True
+                uncovered_ids = set(cov_routes.get("uncovered") or [])
+        lines = ["## Flow Graph"]
+        if routes:
+            lines.append(f"Routes: {len(routes)}")
+            shown = 0
+            for r in routes:
+                if has_routes_block and r.id not in uncovered_ids:
+                    continue
+                lines.append(f"- uncovered: `{r.id}`")
+                shown += 1
+                if shown >= 12:
+                    break
+            if has_routes_block and shown == 0:
+                lines.append("- (all routes covered)")
+        if actions:
+            lines.append("")
+            lines.append(f"Actions: {len(actions)} (sample of 8)")
+            for a in actions[:8]:
+                lines.append(f"- `{a.id}`")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_flow_graph_subgraph(
+        flow_graph: "object",
+        description: str,
+        *,
+        cap: int = 5,
+    ) -> str:
+        """Return a `Relevant routes & actions` block for a generate prompt.
+
+        Heuristic: rank routes/actions by simple keyword overlap with the
+        description, then take the top *cap* of each.
+        """
+
+        routes = tuple(getattr(flow_graph, "routes", ()) or ())
+        actions = tuple(getattr(flow_graph, "actions", ()) or ())
+        if not routes and not actions:
+            return ""
+        terms = {t.lower() for t in re.findall(r"[A-Za-z]{3,}", description or "")}
+
+        def _score(node_id: str, *extra: str) -> int:
+            blob = " ".join((node_id, *extra)).lower()
+            return sum(1 for t in terms if t in blob)
+
+        ranked_routes = sorted(
+            routes,
+            key=lambda r: (-_score(r.id, r.path, r.handler), r.id),
+        )[:max(0, int(cap))]
+        ranked_actions = sorted(
+            actions,
+            key=lambda a: (-_score(a.id, a.role, a.file), a.id),
+        )[:max(0, int(cap))]
+        if not ranked_routes and not ranked_actions:
+            return ""
+
+        lines = ["Relevant routes & actions:", "=" * 60]
+        if ranked_routes:
+            lines.append("Routes:")
+            for r in ranked_routes:
+                ev = ""
+                if r.evidence:
+                    e0 = r.evidence[0]
+                    ev = f" ({e0.file}:{e0.line_range[0]}-{e0.line_range[1]})"
+                lines.append(f"  - {r.id}{ev}")
+        if ranked_actions:
+            lines.append("Actions:")
+            for a in ranked_actions:
+                ev = ""
+                if a.evidence:
+                    e0 = a.evidence[0]
+                    ev = f" ({e0.file}:{e0.line_range[0]}-{e0.line_range[1]})"
+                lines.append(f"  - {a.id}{ev}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_uncovered_block(
+        excerpts: Sequence[tuple[str, int, int, str]],
+        *,
+        cap: int = 12,
+    ) -> str:
+        """Format an `Uncovered code (gaps)` block to inject into a generate prompt.
+
+        Each excerpt is ``(file_path, start_line, end_line, source_text)``.
+        Capped at ``cap`` entries.
+        """
+
+        if not excerpts:
+            return ""
+        head = excerpts[: max(0, int(cap))]
+        if not head:
+            return ""
+        lines: list[str] = ["Uncovered code (gaps):", "=" * 60]
+        for path, start, end, body in head:
+            lines.append(f"--- {path} (lines {start}-{end}) ---")
+            lines.append(body.rstrip())
+            lines.append("")
+        if len(excerpts) > len(head):
+            lines.append(
+                f"(+{len(excerpts) - len(head)} more uncovered excerpts omitted)"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_failure_excerpt(excerpt: str, *, max_bytes: int = 2048) -> str:
+        """Format a `Previous attempt failure` block.
+
+        The excerpt is expected to have already been redacted by the caller
+        (the refinement loop runs it through :func:`playwright_god._secrets.redact`
+        before invoking ``generate``). We do *not* re-redact here so that the
+        caller's choice is honoured byte-for-byte.
+        """
+
+        if not excerpt or not excerpt.strip():
+            return ""
+        body = excerpt
+        if len(body.encode("utf-8")) > max_bytes:
+            body = body.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+            body = body.rstrip() + "\n... (truncated)"
+        return "Previous attempt failure:\n" + ("=" * 60) + "\n" + body.rstrip()
+
+    @staticmethod
+    def _format_coverage_delta_addendum(delta: object) -> str:
+        """Format a `Coverage delta since last attempt` block.
+
+        ``delta`` may be:
+        - a mapping with ``newly_covered`` / ``still_uncovered`` lists, or
+        - any object exposing those attributes (e.g. a dataclass), or
+        - an iterable of ``(path, status)`` pairs.
+        """
+
+        if delta is None:
+            return ""
+
+        newly_covered: list[str] = []
+        still_uncovered: list[str] = []
+
+        if isinstance(delta, dict):
+            newly_covered = list(delta.get("newly_covered") or [])
+            still_uncovered = list(delta.get("still_uncovered") or [])
+        else:
+            newly_covered = list(getattr(delta, "newly_covered", []) or [])
+            still_uncovered = list(getattr(delta, "still_uncovered", []) or [])
+
+        if not newly_covered and not still_uncovered:
+            return ""
+
+        lines = ["Coverage delta since last attempt:", "=" * 60]
+        if newly_covered:
+            lines.append("Newly covered:")
+            for path in newly_covered[:20]:
+                lines.append(f"  + {path}")
+        if still_uncovered:
+            lines.append("Still uncovered:")
+            for path in still_uncovered[:20]:
+                lines.append(f"  - {path}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_seed_spec(content: str, *, max_bytes: int = 8192) -> str:
+        """Format a `Current spec to refine` block for seed-based refinement.
+
+        When updating an existing spec, this block provides the current spec's
+        content so the LLM can refine it rather than generating from scratch.
+        """
+
+        if not content or not content.strip():
+            return ""
+        body = content
+        if len(body.encode("utf-8")) > max_bytes:
+            body = body.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+            body = body.rstrip() + "\n// ... (truncated)"
+        return (
+            "Current spec to refine:\n"
+            + ("=" * 60)
+            + "\n```typescript\n"
+            + body.rstrip()
+            + "\n```\n"
+            + ("=" * 60)
+            + "\n\nRefine and improve this existing spec based on the description above. "
+            "Preserve working parts and fix or enhance as needed."
         )
 
     @staticmethod

@@ -123,7 +123,7 @@ class RepositoryFeatureMap:
     correlations: list[FeatureCorrelation] = field(default_factory=list)
     test_opportunities: list[TestOpportunity] = field(default_factory=list)
     file_index: list[dict[str, object]] = field(default_factory=list)
-    schema_version: str = "2.0"
+    schema_version: str = "2.1"
 
     def to_dict(self) -> dict[str, object]:
         return {

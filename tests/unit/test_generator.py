@@ -521,3 +521,400 @@ class TestOllamaClient:
         roles = [m["role"] for m in payload["messages"]]
         assert roles == ["system", "user"]
         assert payload["messages"][1]["content"] == "user message"
+
+
+# ---------------------------------------------------------------------------
+# Coverage-aware prompt injection (coverage-aware-planning)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingClient:
+    def __init__(self):
+        self.last_prompt = None
+
+    def complete(self, prompt, system_prompt=None):
+        self.last_prompt = prompt
+        return "// generated"
+
+
+class TestUncoveredExcerptInjection:
+    def test_block_appended_when_excerpts_provided(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        excerpts = [("src/a.ts", 1, 3, "alpha\nbeta\ngamma")]
+        gen.generate("login flow", uncovered_excerpts=excerpts)
+        assert "Uncovered code (gaps)" in client.last_prompt
+        assert "src/a.ts" in client.last_prompt
+        assert "alpha" in client.last_prompt
+
+    def test_cap_truncates_excerpts(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        excerpts = [(f"f{i}.ts", 1, 1, f"body{i}") for i in range(20)]
+        gen.generate("scenario", uncovered_excerpts=excerpts, uncovered_cap=5)
+        prompt = client.last_prompt
+        # Only first 5 should appear; the rest are noted as omitted.
+        for i in range(5):
+            assert f"f{i}.ts" in prompt
+        for i in range(5, 20):
+            assert f"f{i}.ts" not in prompt
+        assert "+15 more" in prompt
+
+    def test_no_block_when_excerpts_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        gen.generate("x", uncovered_excerpts=[])
+        assert "Uncovered code (gaps)" not in client.last_prompt
+
+
+class TestCoverageDeltaInPlan:
+    def test_plan_includes_coverage_delta_section(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        coverage = {
+            "summary": {"files": 2, "covered_lines": 5, "uncovered_lines": 5,
+                        "percent": 50.0},
+            "files": [
+                {"path": "a.ts", "covered_lines": [1], "uncovered_lines": [2, 3, 4],
+                 "percent": 25.0},
+                {"path": "b.py", "covered_lines": [1, 2], "uncovered_lines": [3, 4],
+                 "percent": 50.0},
+            ],
+        }
+        gen.plan("memory map", coverage=coverage)
+        assert "## Coverage Delta" in client.last_prompt
+        # Default prioritisation = absolute (most uncovered first) so a.ts wins.
+        idx_a = client.last_prompt.find("`a.ts`")
+        idx_b = client.last_prompt.find("`b.py`")
+        assert 0 < idx_a < idx_b
+
+    def test_plan_prioritise_percent_orders_lowest_first(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        coverage = {
+            "summary": {},
+            "files": [
+                {"path": "a.ts", "uncovered_lines": [1, 2, 3, 4, 5], "percent": 90.0},
+                {"path": "b.py", "uncovered_lines": [1], "percent": 10.0},
+            ],
+        }
+        gen.plan("mm", coverage=coverage, prioritize="percent")
+        idx_a = client.last_prompt.find("`a.ts`")
+        idx_b = client.last_prompt.find("`b.py`")
+        assert 0 < idx_b < idx_a
+
+
+class TestCoverageDeltaEdgeCases:
+    def test_empty_files_returns_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        assert PlaywrightTestGenerator._format_coverage_delta({"files": []}) == ""
+
+    def test_all_files_fully_covered_returns_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        out = PlaywrightTestGenerator._format_coverage_delta(
+            {"files": [{"path": "a", "uncovered_lines": [], "percent": 100.0}]}
+        )
+        assert out == ""
+
+    def test_format_uncovered_block_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        assert PlaywrightTestGenerator._format_uncovered_block([]) == ""
+
+    def test_format_uncovered_block_cap_zero(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        assert PlaywrightTestGenerator._format_uncovered_block(
+            [("a", 1, 1, "x")], cap=0
+        ) == ""
+
+
+# ---------------------------------------------------------------------------
+# iterative-refinement: addenda + byte-identity (Tasks 2.4 / 5.5)
+# ---------------------------------------------------------------------------
+
+
+class _PromptRecorder:
+    """LLM client that records the last prompt it was sent."""
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:  # noqa: ARG002
+        self.prompts.append(prompt)
+        return "// stub spec\n"
+
+
+def test_generate_no_addenda_is_byte_identical() -> None:
+    """The no-addenda call SHALL produce the same prompt as before this change."""
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client_a = _PromptRecorder()
+    client_b = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client_a).generate("login flow")
+    PlaywrightTestGenerator(llm_client=client_b).generate(
+        "login flow",
+        failure_excerpt=None,
+        coverage_delta=None,
+    )
+    assert client_a.prompts == client_b.prompts
+
+
+def test_generate_failure_excerpt_appends_section() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login flow",
+        failure_excerpt="TypeError at app.ts:42",
+    )
+    assert "Previous attempt failure:" in client.prompts[0]
+    assert "TypeError at app.ts:42" in client.prompts[0]
+
+
+def test_generate_coverage_delta_appends_section() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    delta = {
+        "newly_covered": ["src/a.py"],
+        "still_uncovered": ["src/b.py", "src/c.py"],
+    }
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login flow",
+        coverage_delta=delta,
+    )
+    p = client.prompts[0]
+    assert "Coverage delta since last attempt:" in p
+    assert "newly covered" in p.lower() or "+ src/a.py" in p
+    assert "src/b.py" in p
+
+
+def test_generate_empty_coverage_delta_emits_no_section() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login",
+        coverage_delta={"newly_covered": [], "still_uncovered": []},
+    )
+    assert "Coverage delta since last attempt:" not in client.prompts[0]
+
+
+def test_generate_failure_excerpt_truncated_at_2kb() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    big = "X" * 5000
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login", failure_excerpt=big
+    )
+    p = client.prompts[0]
+    assert "(truncated)" in p
+    # The excerpt body should not exceed ~2KB inside the prompt.
+    body = p.split("Previous attempt failure:", 1)[1]
+    assert len(body.encode("utf-8")) < 2500
+
+
+def test_generate_blank_failure_excerpt_ignored() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client_a = _PromptRecorder()
+    client_b = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client_a).generate("login")
+    PlaywrightTestGenerator(llm_client=client_b).generate("login", failure_excerpt="   \n  ")
+    assert client_a.prompts == client_b.prompts
+
+
+def test_generate_coverage_delta_with_dataclass_object() -> None:
+    """Accept any object exposing newly_covered / still_uncovered attributes."""
+    from playwright_god.generator import PlaywrightTestGenerator
+    from playwright_god.refinement import CoverageDelta
+
+    client = _PromptRecorder()
+    delta = CoverageDelta(
+        newly_covered=("src/a.py",), still_uncovered=("src/b.py",), coverage_gain=0.1
+    )
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login", coverage_delta=delta
+    )
+    assert "src/a.py" in client.prompts[0]
+    assert "src/b.py" in client.prompts[0]
+
+
+# ---------------------------------------------------------------------------
+# Flow-graph integration (flow-graph-extraction)
+# ---------------------------------------------------------------------------
+
+
+def _flow_graph_with_routes_and_actions():
+    from playwright_god.flow_graph import (
+        Action,
+        Evidence,
+        FlowGraph,
+        Route,
+    )
+
+    return FlowGraph.from_iterables(
+        nodes=[
+            Route(
+                method="GET",
+                path="/login",
+                handler="login_handler",
+                evidence=(Evidence("api/auth.py", (1, 5)),),
+            ),
+            Route(
+                method="POST",
+                path="/items",
+                handler="create_item",
+                evidence=(Evidence("api/items.py", (10, 20)),),
+            ),
+            Action(
+                file="src/Login.tsx",
+                line=12,
+                role="login-submit",
+                evidence=(Evidence("src/Login.tsx", (12, 12)),),
+            ),
+        ]
+    )
+
+
+def test_plan_includes_flow_graph_block():
+    from playwright_god.generator import (
+        PlaywrightTestGenerator,
+        TemplateLLMClient,
+    )
+
+    captured = {}
+
+    class _Capture(TemplateLLMClient):
+        def complete(self, prompt, system_prompt=None):
+            captured["prompt"] = prompt
+            return "PLAN"
+
+    gen = PlaywrightTestGenerator(llm_client=_Capture())
+    out = gen.plan(
+        "memory map text",
+        flow_graph=_flow_graph_with_routes_and_actions(),
+    )
+    assert out == "PLAN"
+    assert "## Flow Graph" in captured["prompt"]
+    assert "route:GET:/login" in captured["prompt"]
+    assert "action:src/Login.tsx:12#login-submit" in captured["prompt"]
+
+
+def test_plan_with_prioritize_routes_orders_files():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    coverage = {
+        "files": [
+            {"path": "api/items.py", "percent": 50.0,
+             "uncovered_lines": [1, 2], "covered_lines": [3]},
+            {"path": "api/auth.py", "percent": 80.0,
+             "uncovered_lines": [9], "covered_lines": [1, 2, 3, 4]},
+            {"path": "lib/util.py", "percent": 10.0,
+             "uncovered_lines": [1, 2, 3, 4, 5], "covered_lines": [6]},
+        ],
+        "routes": {"uncovered": ["route:POST:/items", "route:GET:/login"]},
+    }
+    block = PlaywrightTestGenerator._format_coverage_delta(
+        coverage,
+        prioritize="routes",
+        flow_graph=_flow_graph_with_routes_and_actions(),
+    )
+    # api/items.py and api/auth.py both touched by uncovered routes;
+    # lib/util.py has zero route weight even though its percent is lowest.
+    first_line = next(line for line in block.splitlines() if line.startswith("- "))
+    assert "api/items.py" in first_line or "api/auth.py" in first_line
+
+
+def test_plan_prioritize_routes_without_graph_falls_back():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    coverage = {
+        "files": [
+            {"path": "a.py", "percent": 50.0,
+             "uncovered_lines": [1], "covered_lines": [2]},
+        ],
+    }
+    block = PlaywrightTestGenerator._format_coverage_delta(
+        coverage, prioritize="routes", flow_graph=None
+    )
+    assert "a.py" in block
+
+
+def test_format_flow_graph_for_plan_handles_no_uncovered_routes():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    block = PlaywrightTestGenerator._format_flow_graph_for_plan(
+        _flow_graph_with_routes_and_actions(),
+        coverage={"routes": {"uncovered": []}},
+    )
+    assert "all routes covered" in block
+
+
+def test_format_flow_graph_for_plan_returns_empty_for_none():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    assert PlaywrightTestGenerator._format_flow_graph_for_plan(None) == ""
+
+
+def test_format_flow_graph_for_plan_returns_empty_for_empty_graph():
+    from playwright_god.flow_graph import FlowGraph
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    assert PlaywrightTestGenerator._format_flow_graph_for_plan(FlowGraph()) == ""
+
+
+def test_generate_includes_relevant_routes_block():
+    from playwright_god.generator import (
+        PlaywrightTestGenerator,
+        TemplateLLMClient,
+    )
+
+    captured = {}
+
+    class _Capture(TemplateLLMClient):
+        def complete(self, prompt, system_prompt=None):
+            captured["prompt"] = prompt
+            return "TEST"
+
+    gen = PlaywrightTestGenerator(llm_client=_Capture())
+    out = gen.generate(
+        "Test the login flow and items endpoint",
+        flow_graph=_flow_graph_with_routes_and_actions(),
+    )
+    assert out == "TEST"
+    assert "Relevant routes & actions" in captured["prompt"]
+    # Both terms appear in the description; both routes should be included.
+    assert "route:GET:/login" in captured["prompt"]
+    assert "route:POST:/items" in captured["prompt"]
+
+
+def test_format_flow_graph_subgraph_caps_results():
+    from playwright_god.flow_graph import Action, Evidence, FlowGraph, Route
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    routes = [Route(method="GET", path=f"/p{i}",
+                    evidence=(Evidence("a.py", (i, i)),)) for i in range(20)]
+    actions = [Action(file="a.tsx", line=i, role=f"r{i}") for i in range(20)]
+    g = FlowGraph.from_iterables(routes + actions)
+    block = PlaywrightTestGenerator._format_flow_graph_subgraph(g, "anything", cap=3)
+    # 3 routes + 3 actions max
+    assert block.count("- route:") <= 3
+    assert block.count("- action:") <= 3
+
+
+def test_format_flow_graph_subgraph_empty_graph_returns_empty():
+    from playwright_god.flow_graph import FlowGraph
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    assert PlaywrightTestGenerator._format_flow_graph_subgraph(FlowGraph(), "x") == ""

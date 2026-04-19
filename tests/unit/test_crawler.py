@@ -215,3 +215,53 @@ class TestBuildStructureSummary:
         crawler = RepositoryCrawler()
         summary = crawler.build_structure_summary([])
         assert summary == ""
+
+
+class TestReadFileOSError:
+    """Cover the `except OSError: return None` branch in `_read_file`."""
+
+    def test_unreadable_file_is_skipped_via_chmod(self, tmp_path):
+        """A real file with mode 000 is silently skipped on the crawl."""
+        # Skip when running as root: chmod 000 doesn't restrict reads for uid 0.
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            pytest.skip("chmod 000 has no effect when running as root")
+
+        unreadable = tmp_path / "secret.py"
+        unreadable.write_text("print('hi')\n", encoding="utf-8")
+        readable = tmp_path / "ok.py"
+        readable.write_text("print('ok')\n", encoding="utf-8")
+
+        os.chmod(unreadable, 0o000)
+        try:
+            crawler = RepositoryCrawler()
+            files = crawler.crawl(str(tmp_path))
+        finally:
+            # Restore so pytest's tmp_path cleanup can remove the file.
+            os.chmod(unreadable, 0o644)
+
+        paths = {Path(f.path).name for f in files}
+        assert "ok.py" in paths
+        assert "secret.py" not in paths
+
+    def test_oserror_during_read_is_skipped(self, tmp_path, monkeypatch):
+        """Monkeypatch fallback: forces OSError on read for portability."""
+        target = tmp_path / "problematic.py"
+        target.write_text("print('hi')\n", encoding="utf-8")
+        sibling = tmp_path / "fine.py"
+        sibling.write_text("print('fine')\n", encoding="utf-8")
+
+        original_read_text = Path.read_text
+
+        def fake_read_text(self, *args, **kwargs):
+            if self.name == "problematic.py":
+                raise OSError("simulated read failure")
+            return original_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+        crawler = RepositoryCrawler()
+        files = crawler.crawl(str(tmp_path))
+
+        names = {Path(f.path).name for f in files}
+        assert "fine.py" in names
+        assert "problematic.py" not in names

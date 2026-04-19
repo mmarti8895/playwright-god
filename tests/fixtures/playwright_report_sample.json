@@ -1,0 +1,77 @@
+{
+  "config": {
+    "version": "1.45.0",
+    "rootDir": "/tmp/sample"
+  },
+  "suites": [
+    {
+      "title": "sample.spec.ts",
+      "specs": [],
+      "suites": [
+        {
+          "title": "auth flow",
+          "specs": [
+            {
+              "title": "logs in successfully",
+              "tests": [
+                {
+                  "results": [
+                    {
+                      "status": "passed",
+                      "duration": 1234,
+                      "attachments": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "rejects bad password",
+              "tests": [
+                {
+                  "results": [
+                    {
+                      "status": "failed",
+                      "duration": 567,
+                      "error": {
+                        "message": "expect(received).toBe(expected)\nExpected: \"dashboard\"\nReceived: \"login\""
+                      },
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "path": "/tmp/sample/trace.zip",
+                          "contentType": "application/zip"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "skipped scenario",
+              "tests": [
+                {
+                  "results": [
+                    {
+                      "status": "skipped",
+                      "duration": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "expected": 2,
+    "skipped": 1,
+    "unexpected": 1,
+    "flaky": 0,
+    "duration": 1801
+  }
+}

@@ -15,21 +15,21 @@ and aligned CLI/tests/docs.
 
 ## Technical Context
 
-**Language/Version**: Python 3.11+  
+**Language/Version**: Python 3.11+
 **Primary Dependencies**: `click`, `chromadb`, optional LLM SDKs
 (`openai`, `anthropic`, `google-generativeai`, `requests`), Playwright for
-Python and pytest-based test tooling  
-**Storage**: Local filesystem for persisted ChromaDB index and JSON memory maps  
+Python and pytest-based test tooling
+**Storage**: Local filesystem for persisted ChromaDB index and JSON memory maps
 **Testing**: `pytest`, `pytest-cov`, Click `CliRunner`, existing integration
-tests, and Playwright-for-Python-oriented generator/CLI tests  
-**Target Platform**: Local CLI on Windows, macOS, and Linux  
-**Project Type**: Python library + CLI tool  
+tests, and Playwright-for-Python-oriented generator/CLI tests
+**Target Platform**: Local CLI on Windows, macOS, and Linux
+**Project Type**: Python library + CLI tool
 **Performance Goals**: Preserve interactive local workflows; representative
 repository analysis plus saved memory map within 5 minutes; saved-memory reuse
-should cut later planning/generation time by at least 50%  
+should cut later planning/generation time by at least 50%
 **Constraints**: Offline-friendly template mode, deterministic tests, minimal
 CLI surface drift, compact memory-map output, no real network calls in tests,
-bounded timeouts for external providers  
+bounded timeouts for external providers
 **Scale/Scope**: Single repository analysis for small-to-medium codebases with
 dozens to low thousands of source files and mixed source/config/test artifacts
 

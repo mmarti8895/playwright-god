@@ -1,8 +1,8 @@
 # Feature Specification: Repository Memory Inference
 
-**Feature Branch**: `001-repo-memory-inference`  
-**Created**: 2026-04-11  
-**Status**: Draft  
+**Feature Branch**: `001-repo-memory-inference`
+**Created**: 2026-04-11
+**Status**: Draft
 **Input**: User description: "Application should be able to be able to read repositories, build the internal memory and correlations possible, to infere the types of playwright tests that can be generated to verfiy the applications intended features based on the code and how it connects in the repository; while saving a streamlined memory map of how all the repository features are working together in an efficient system."
 
 ## User Scenarios & Testing *(mandatory)*

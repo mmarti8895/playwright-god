@@ -15,23 +15,23 @@ from .indexer import RepositoryIndexer, SearchResult
 _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(r"""(password\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1\2os.environ.get("TEST_PASSWORD", "")\2',
+        r'\1process.env.TEST_PASSWORD ?? ""',
     ),
     (
         re.compile(r"""((?:username|user)\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1\2os.environ.get("TEST_USERNAME", "")\2',
+        r'\1process.env.TEST_USERNAME ?? ""',
     ),
     (
         re.compile(r"""(api[_-]?key\s*[=:]\s*)(['"])([^'"]{8,})(\2)""", re.IGNORECASE),
-        r'\1\2os.environ.get("API_KEY", "")\2',
+        r'\1process.env.API_KEY ?? ""',
     ),
     (
         re.compile(r"""((?:access_?)?token\s*[=:]\s*)(['"])([^'"]{8,})(\2)""", re.IGNORECASE),
-        r'\1\2os.environ.get("ACCESS_TOKEN", "")\2',
+        r'\1process.env.ACCESS_TOKEN ?? ""',
     ),
     (
         re.compile(r"""(secret\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1\2os.environ.get("SECRET", "")\2',
+        r'\1process.env.SECRET ?? ""',
     ),
 ]
 
@@ -186,7 +186,7 @@ class OllamaClient(LLMClient):
 
 
 class TemplateLLMClient(LLMClient):
-    """Offline fallback that emits Python Playwright tests."""
+    """Offline fallback that emits TypeScript Playwright tests."""
 
     _LOG_KEYWORDS: frozenset[str] = frozenset(
         {
@@ -221,79 +221,77 @@ class TemplateLLMClient(LLMClient):
         primary_test_name = self._test_name(description, "covers_described_flow")
 
         lines = [
-            "import os",
-            "import re",
+            'import { test, expect } from "@playwright/test";',
             "",
-            "from playwright.sync_api import Page, expect",
+            f'const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "{base_url}";',
             "",
-            f'BASE_URL = os.environ.get("PLAYWRIGHT_BASE_URL", "{base_url}")',
+            f"// Generated test for: {description}",
+            "// Review selectors, data setup, and assertions before running.",
             "",
-            f"# Generated test for: {description}",
-            "# Review selectors, data setup, and assertions before running.",
-            "",
-            f"def {primary_test_name}(page: Page) -> None:",
-            "    # Validate the primary user journey described in the prompt.",
-            "    page.goto(BASE_URL)",
+            f'test("{primary_test_name}", async ({{ page }}) => {{',
+            "  // Validate the primary user journey described in the prompt.",
+            "  await page.goto(BASE_URL);",
         ]
 
         if text_content:
             for text in text_content[:3]:
                 safe_text = text.replace('"', '\\"')
-                lines.append(f'    expect(page.get_by_text("{safe_text}")).to_be_visible()')
+                lines.append(f'  await expect(page.getByText("{safe_text}")).toBeVisible();')
         else:
-            lines.append("    expect(page).to_have_url(BASE_URL)")
-        lines.append("")
+            lines.append("  await expect(page).toHaveURL(BASE_URL);")
+        lines.extend(["});", ""])
 
         if selectors:
             lines.extend(
                 [
-                    "def test_key_ui_elements_are_visible(page: Page) -> None:",
-                    "    # Check that the most relevant elements inferred from the repository are visible.",
-                    "    page.goto(BASE_URL)",
+                    'test("key ui elements are visible", async ({ page }) => {',
+                    "  // Check that the most relevant elements inferred from the repository are visible.",
+                    "  await page.goto(BASE_URL);",
                 ]
             )
             for selector in selectors[:5]:
                 safe_selector = selector.replace('"', '\\"')
-                lines.append(f'    expect(page.locator("{safe_selector}")).to_be_visible()')
-            lines.append("")
+                lines.append(f'  await expect(page.locator("{safe_selector}")).toBeVisible();')
+            lines.extend(["});", ""])
 
         if form_fields:
             lines.extend(
                 [
-                    "def test_form_submission_flow(page: Page) -> None:",
-                    "    # Exercise the main form inputs inferred from the repository context.",
-                    "    page.goto(BASE_URL)",
+                    'test("form submission flow", async ({ page }) => {',
+                    "  // Exercise the main form inputs inferred from the repository context.",
+                    "  await page.goto(BASE_URL);",
                 ]
             )
             for label, value in form_fields[:4]:
                 safe_label = label.replace('"', '\\"')
                 safe_value = value.replace('"', '\\"')
-                lines.append(f'    page.get_by_label("{safe_label}").fill("{safe_value}")')
+                lines.append(f'  await page.getByLabel("{safe_label}").fill("{safe_value}");')
             lines.append(
-                '    page.get_by_role("button", name=re.compile("submit|login|sign in|add|save", re.IGNORECASE)).click()'
+                '  await page.getByRole("button", { name: /submit|login|sign in|add|save/i }).click();'
             )
-            lines.append("")
+            lines.extend(["});", ""])
 
         if is_log_test:
             lines.extend(
                 [
-                    "def test_console_and_logging_signals_are_observable(page: Page) -> None:",
-                    "    # Capture observable logging signals before navigation so failures are reviewable.",
-                    "    messages: list[str] = []",
-                    "    errors: list[str] = []",
-                    "    audit_requests: list[str] = []",
+                    'test("console and logging signals are observable", async ({ page }) => {',
+                    "  // Capture observable logging signals before navigation so failures are reviewable.",
+                    "  const messages: string[] = [];",
+                    "  const errors: string[] = [];",
+                    "  const auditRequests: string[] = [];",
                     "",
-                    "    def capture_route(route) -> None:",
-                    "        audit_requests.append(route.request.url)",
-                    "        route.continue_()",
+                    "  await page.route(\"**/*\", async (route) => {",
+                    "    auditRequests.push(route.request().url());",
+                    "    await route.continue();",
+                    "  });",
                     "",
-                    '    page.on("console", lambda msg: messages.append(f"[{msg.type}] {msg.text}"))',
-                    '    page.on("pageerror", lambda err: errors.append(err.message))',
-                    '    page.route("**/*", capture_route)',
-                    "    page.goto(BASE_URL)",
-                    "    assert errors == []",
-                    "    assert messages is not None",
-                    "    assert audit_requests is not None",
+                    '  page.on("console", (msg) => messages.push(`[${msg.type()}] ${msg.text()}`));',
+                    '  page.on("pageerror", (err) => errors.push(err.message));',
+                    "  await page.goto(BASE_URL);",
+                    "  expect(errors).toEqual([]);",
+                    "  expect(messages).toBeDefined();",
+                    "  expect(auditRequests).toBeDefined();",
+                    "});",
                     "",
                 ]
             )
@@ -302,7 +300,14 @@ class TemplateLLMClient(LLMClient):
 
     @staticmethod
     def _is_plan_prompt(prompt: str) -> bool:
-        return "generate a markdown test plan" in prompt.lower()
+        lower = prompt.lower()
+        return (
+            lower.strip().startswith("generate a markdown test plan")
+            or (
+                "below is a memory map of the indexed repository" in lower
+                and "generate a markdown test plan" in lower
+            )
+        )
 
     @staticmethod
     def _generate_plan(prompt: str) -> str:
@@ -456,23 +461,24 @@ class PlaywrightTestGenerator:
     SYSTEM_PROMPT = textwrap.dedent(
         """\
         You are an expert Playwright test engineer.
-        Your task is to write high-quality Playwright tests in Python.
+        Your task is to write high-quality Playwright tests in TypeScript.
 
         Guidelines:
-        - Use Playwright for Python with pytest-friendly test functions
+        - Use Playwright Test in TypeScript
         - Prefer user-visible attributes over CSS selectors or XPath
         - Each test should be independent and idempotent
-        - Use from playwright.sync_api import Page, expect
-        - Include meaningful assertions using expect()
+        - Use import { test, expect } from "@playwright/test"
+        - Include meaningful assertions using await expect(...)
         - Add a brief comment explaining each test's intent
         - Reflect repository evidence and uncertainty where the prompt signals ambiguity
-        - Return only Python code, no markdown fences
+        - Return only TypeScript code, no markdown fences
+        - Produce tests that fit naturally in a .spec.ts file
 
         Authentication guidelines:
-        - NEVER hardcode passwords, tokens, or API keys; always use os.environ values
+        - NEVER hardcode passwords, tokens, or API keys; always use process.env values
         - For SAML and OIDC flows, model reusable helper functions or fixtures
-        - Use page.wait_for_url() to handle redirect chains
-        - For NTLM or Kerberos flows, use http_credentials on the browser context
+        - Use page.waitForURL() to handle redirect chains
+        - For NTLM or Kerberos flows, use httpCredentials on the browser context
 
         Logging guidelines:
         - Attach page.on("console", ...) listeners before navigation
@@ -510,7 +516,7 @@ class PlaywrightTestGenerator:
                 parts.append(hint)
             template = get_template(auth_type)
             if template:
-                parts.append("Reference Python template:\n```python\n" + template + "\n```")
+                parts.append("Reference TypeScript template:\n```ts\n" + template + "\n```")
             if parts:
                 auth_extra = "\n\n".join(parts)
 
@@ -565,12 +571,10 @@ class PlaywrightTestGenerator:
         if redacted:
             print(
                 "playwright-god: WARNING - hardcoded credentials were detected in the generated output "
-                "and replaced with os.environ placeholders. Store secrets in environment variables, "
+                "and replaced with process.env placeholders. Store secrets in environment variables, "
                 "never in test code.",
                 file=sys.stderr,
             )
-            if "import os" not in code:
-                code = "import os\n\n" + code
         return code
 
     def _build_prompt(
@@ -593,7 +597,7 @@ class PlaywrightTestGenerator:
             parts += ["Additional context:", "=" * 60, extra_context, ""]
         parts += [
             "=" * 60,
-            "Write a comprehensive Python Playwright test suite for the description above.",
+            "Write a comprehensive TypeScript Playwright test suite for the description above.",
             "Use the context to understand the application structure, user journeys, selectors, and evidence-backed assertions.",
         ]
         return "\n".join(parts)

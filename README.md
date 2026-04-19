@@ -1,19 +1,45 @@
 # playwright-god
 
-`playwright-god` is a CLI that indexes a repository, builds a compact memory of how its files relate, and uses that context to generate Playwright tests in Python.
+`playwright-god` is a CLI that indexes a repository, builds a compact memory of how its files relate, and uses that context to generate Playwright tests and plans from repository-aware RAG context.
+
+## What It Does Now
+
+- It is a Python CLI that analyzes a repository and builds retrieval context for AI-assisted test authoring.
+- `index` crawls files with `RepositoryCrawler`, splits them into overlapping chunks with `FileChunker`, embeds them into Chroma with `RepositoryIndexer`, and can save a compact `MemoryMap`.
+- During indexing it also infers higher-level feature structure via `feature_map.py`, so the memory map is not just file inventory; it also carries inferred features, correlations, and test opportunities.
+- `generate` performs RAG search over the indexed chunks, optionally injects the saved memory map plus auth/logging hints, and asks an LLM to produce a TypeScript Playwright spec for `@playwright/test`.
+- `plan` uses the memory map or index inventory to produce a Markdown test plan grouped around feature areas.
+- There is also an offline template fallback, so generation and planning still work without an external LLM API key.
 
 ## How It Works
 
 ```text
-repository files
-  -> RepositoryCrawler
-  -> FileChunker
-  -> RepositoryIndexer
-  -> feature-aware memory map
-  -> generate / plan
+Repository files
+      │
+      ▼
+ RepositoryCrawler          ← walks the directory tree, reads file contents
+      │
+      ▼
+    FileChunker             ← splits files into overlapping line-based chunks
+      │
+      ▼
+ RepositoryIndexer          ← embeds chunks & stores them in a ChromaDB vector store
+      │
+      ├─► MemoryMap          ← optional JSON snapshot of every indexed file & chunk
+      │                         (saved with `index --memory-map`, used by `generate`
+      │                          and `plan` to give the AI a full codebase overview)
+      │
+      ▼  (at query time)
+   RAG search               ← retrieves the most relevant chunks for a given description
+      │
+      ▼
+PlaywrightTestGenerator     ← builds a prompt from the retrieved context and calls an LLM
+      │
+      ├─► generate           ← produces a TypeScript Playwright `.spec.ts` file
+      └─► plan               ← produces a Markdown test-plan document
 ```
 
-During indexing, the tool now infers feature areas, shared artifacts, and candidate test opportunities. When you save a memory map, that higher-level repository understanding can be reused later without rebuilding the full analysis.
+During indexing, the tool infers feature areas, shared artifacts, and candidate test opportunities. When you save a memory map, that higher-level repository understanding can be reused later without rebuilding the full analysis.
 
 ## Installation
 
@@ -47,10 +73,10 @@ Expected output includes:
 - a persisted vector index
 - a saved memory map when `--memory-map` is provided
 
-Generate Python Playwright tests:
+Generate a TypeScript Playwright spec:
 
 ```bash
-playwright-god generate "user login flow" -d .idx --memory-map .idx/memory_map.json -o tests/login.spec.py
+playwright-god generate "user login flow" -d .idx --memory-map .idx/memory_map.json -o tests/login.spec.ts
 ```
 
 Create a feature-oriented test plan:
@@ -88,9 +114,9 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 - optionally saves a compact memory map
 
 `generate`
-- retrieves relevant repository chunks
+- retrieves relevant repository chunks through RAG search
 - injects optional saved memory and auth context
-- emits Python Playwright tests using `playwright.sync_api`
+- emits TypeScript Playwright tests for `@playwright/test`
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -126,7 +152,7 @@ The saved memory map keeps the original file inventory and extends it with strea
 }
 ```
 
-This format is meant to stay compact: it keeps evidence references, not full chunk text.
+This format is meant to stay compact: it keeps file/chunk inventory plus evidence references, not full chunk text.
 
 ## Providers
 
@@ -166,6 +192,34 @@ Run coverage:
 ```bash
 pytest --cov=playwright_god --cov-report=term-missing
 ```
+
+## Current Coverage
+
+Most recent verification in this workspace on April 18, 2026:
+
+- `tests/unit` + `tests/integration`: `304 passed`
+- package coverage for `playwright_god`: `98%` (`1038` statements, `20` missed)
+
+Per-module coverage from that run:
+
+| Module | Coverage |
+|------|---------|
+| `playwright_god/__init__.py` | `100%` |
+| `playwright_god/auth_templates.py` | `100%` |
+| `playwright_god/chunker.py` | `100%` |
+| `playwright_god/cli.py` | `100%` |
+| `playwright_god/crawler.py` | `97%` |
+| `playwright_god/embedder.py` | `65%` |
+| `playwright_god/feature_map.py` | `100%` |
+| `playwright_god/generator.py` | `100%` |
+| `playwright_god/indexer.py` | `97%` |
+| `playwright_god/memory_map.py` | `100%` |
+
+Notes:
+
+- The browser-backed `tests/e2e` suite does not currently pass in this sandboxed environment.
+- After installing Playwright Chromium, the e2e run still failed during browser launch with a Linux sandbox error from Chromium (`sandbox_host_linux.cc`, `Operation not permitted`).
+- The Python/package coverage figure above comes from the passing unit + integration run, which exercises the repository-analysis and generation pipeline end to end.
 
 ## Repository Layout
 

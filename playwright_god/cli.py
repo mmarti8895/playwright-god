@@ -37,7 +37,7 @@ def cli() -> None:
     \b
     Workflow:
       1. playwright-god index <repo-path>   # index the repository
-      2. playwright-god generate "..."      # generate a Python Playwright test
+      2. playwright-god generate "..."      # generate a TypeScript Playwright test
     """
 
 
@@ -320,7 +320,7 @@ def generate(
 
     Retrieves relevant code context from the index built with the
     `index` command, then calls an LLM (or the template fallback) to
-    produce a Python Playwright test.
+    produce a TypeScript Playwright test.
     """
     from .embedder import MockEmbedder as _MockEmbedder
 
@@ -413,7 +413,7 @@ def generate(
                 extra_parts.append(
                     "Credential environment variable names available in this project "
                     "(use these in generated tests instead of hardcoded values):\n"
-                    + "\n".join(f'  os.environ.get("{name}", "")' for name in env_var_names)
+                    + "\n".join(f"  process.env.{name} ?? \"\"" for name in env_var_names)
                 )
         except OSError as exc:
             click.echo(f"Warning: could not read --env-file {env_file!r}: {exc}", err=True)

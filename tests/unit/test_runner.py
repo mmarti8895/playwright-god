@@ -192,6 +192,18 @@ def test_run_failed(tmp_path, monkeypatch):
     assert result.tests[0].error_message == "boom"
 
 
+def test_run_non_passing_status_is_failed(tmp_path, monkeypatch):
+    payload = {
+        "suites": [
+            {"specs": [{"title": "slow",
+                        "tests": [{"results": [{"status": "timedOut", "duration": 42}]}]}]}
+        ]
+    }
+    spec, _ = _setup_run(tmp_path, monkeypatch, payload, returncode=0)
+    result = PlaywrightRunner(target_dir=tmp_path).run(spec)
+    assert result.status == "failed"
+
+
 def test_run_error_when_no_report(tmp_path, monkeypatch):
     spec, _ = _setup_run(tmp_path, monkeypatch, None, returncode=2, stderr="config crash")
     result = PlaywrightRunner(target_dir=tmp_path).run(spec)

@@ -13,9 +13,9 @@ import json
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Literal, Mapping, Sequence
+from typing import Literal, Mapping, Sequence
 
 # Environment variables forwarded to the Playwright subprocess. These are
 # never logged or included in any RunResult field.
@@ -326,10 +326,8 @@ class PlaywrightRunner:
         tests, duration_ms = _parse_report(payload)
         if completed.returncode == 0 and all(t.status in ("passed", "skipped") for t in tests):
             status: RunStatus = "passed"
-        elif any(t.status == "failed" for t in tests) or completed.returncode != 0:
-            status = "failed"
         else:
-            status = "error"
+            status = "failed"
 
         return RunResult(
             status=status,

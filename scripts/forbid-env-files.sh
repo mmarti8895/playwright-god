@@ -10,7 +10,7 @@ for f in "$@"; do
         example.env|.env.example)
             continue
             ;;
-        .env|.env.*)
+        .env|.env.*|.envrc|.envrc.*)
             echo "ERROR: refusing to commit env file: $f"
             echo "       (these are gitignored to protect secrets; use example.env for templates)"
             status=1

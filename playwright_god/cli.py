@@ -794,7 +794,7 @@ def _print_run_summary(result: RunResult, *, json_output: bool = False) -> None:
 
 
 @cli.command(name="run")
-@click.argument("spec_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("spec_path", type=click.Path(exists=True, file_okay=True, dir_okay=True))
 @click.option(
     "--target-dir",
     "-t",

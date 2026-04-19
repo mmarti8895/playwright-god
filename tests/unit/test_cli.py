@@ -1053,6 +1053,29 @@ class TestRunCommand:
         assert result.exit_code == 1
         assert "FAIL" in result.output or "boom" in result.output
 
+    def test_run_accepts_directory_spec_path(self, runner, tmp_path):
+        spec_dir = tmp_path / "tests"
+        spec_dir.mkdir()
+        from playwright_god.runner import RunResult
+
+        fake = RunResult(
+            status="passed",
+            duration_ms=0,
+            tests=(),
+            exit_code=0,
+            stdout="",
+            stderr="",
+            spec_path=spec_dir,
+        )
+        with patch("playwright_god.cli.PlaywrightRunner") as MockRunner:
+            instance = MagicMock()
+            instance.run.return_value = fake
+            MockRunner.return_value = instance
+            result = runner.invoke(cli, ["run", str(spec_dir)])
+        assert result.exit_code == 0
+        called_arg = instance.run.call_args.args[0]
+        assert str(called_arg) == str(spec_dir)
+
     def test_run_setup_error_exits_two(self, runner, tmp_path):
         spec = tmp_path / "demo.spec.ts"
         spec.write_text("// noop")

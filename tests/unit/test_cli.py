@@ -997,3 +997,185 @@ def test_main_invokes_cli():
     with patch("playwright_god.cli.cli") as mock_cli:
         main()
     mock_cli.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# `playwright-god run` subcommand and `generate --run`
+# ---------------------------------------------------------------------------
+class TestRunCommand:
+    def test_run_help(self, runner):
+        result = runner.invoke(cli, ["run", "--help"])
+        assert result.exit_code == 0
+        assert "SPEC_PATH" in result.output or "spec_path" in result.output.lower()
+        assert "--target-dir" in result.output
+        assert "--reporter" in result.output
+        assert "--artifact-dir" in result.output
+
+    def test_run_passed_exits_zero(self, runner, tmp_path):
+        spec = tmp_path / "demo.spec.ts"
+        spec.write_text("// noop")
+        from playwright_god.runner import RunResult, TestCaseResult
+
+        fake = RunResult(
+            status="passed",
+            duration_ms=12,
+            tests=(TestCaseResult(title="t", status="passed", duration_ms=12),),
+            exit_code=0,
+            stdout="", stderr="",
+            spec_path=spec,
+        )
+        with patch("playwright_god.cli.PlaywrightRunner") as MockRunner:
+            instance = MagicMock()
+            instance.run.return_value = fake
+            MockRunner.return_value = instance
+            result = runner.invoke(cli, ["run", str(spec)])
+        assert result.exit_code == 0
+        assert "PASS" in result.output or "passed" in result.output.lower()
+
+    def test_run_failed_exits_one(self, runner, tmp_path):
+        spec = tmp_path / "demo.spec.ts"
+        spec.write_text("// noop")
+        from playwright_god.runner import RunResult, TestCaseResult
+
+        fake = RunResult(
+            status="failed",
+            duration_ms=5,
+            tests=(TestCaseResult(title="t", status="failed", duration_ms=5,
+                                  error_message="boom"),),
+            exit_code=1,
+            stdout="", stderr="",
+        )
+        with patch("playwright_god.cli.PlaywrightRunner") as MockRunner:
+            instance = MagicMock()
+            instance.run.return_value = fake
+            MockRunner.return_value = instance
+            result = runner.invoke(cli, ["run", str(spec)])
+        assert result.exit_code == 1
+        assert "FAIL" in result.output or "boom" in result.output
+
+    def test_run_setup_error_exits_two(self, runner, tmp_path):
+        spec = tmp_path / "demo.spec.ts"
+        spec.write_text("// noop")
+        from playwright_god.runner import RunnerSetupError
+
+        with patch("playwright_god.cli.PlaywrightRunner") as MockRunner:
+            instance = MagicMock()
+            instance.run.side_effect = RunnerSetupError("npx not found")
+            MockRunner.return_value = instance
+            result = runner.invoke(cli, ["run", str(spec)])
+        assert result.exit_code == 2
+        assert "npx not found" in result.output
+
+    def test_run_json_output(self, runner, tmp_path):
+        spec = tmp_path / "demo.spec.ts"
+        spec.write_text("// noop")
+        from playwright_god.runner import RunResult
+
+        fake = RunResult(
+            status="passed", duration_ms=0, tests=(), exit_code=0,
+            stdout="", stderr="", spec_path=spec,
+        )
+        with patch("playwright_god.cli.PlaywrightRunner") as MockRunner:
+            instance = MagicMock()
+            instance.run.return_value = fake
+            MockRunner.return_value = instance
+            result = runner.invoke(cli, ["run", str(spec), "--json"])
+        assert result.exit_code == 0
+        import json as _json
+        parsed = _json.loads(result.output)
+        assert parsed["status"] == "passed"
+        assert parsed["exit_code"] == 0
+
+
+class TestGenerateRunFlag:
+    def test_generate_run_chains_to_runner(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        output_file = str(tmp_path / "out.spec.ts")
+        from playwright_god.runner import RunResult
+
+        fake = RunResult(
+            status="passed", duration_ms=1, tests=(), exit_code=0,
+            stdout="", stderr="",
+        )
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightRunner") as MockRunner,
+        ):
+            MockEmb.return_value = MagicMock()
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 0
+            mock_indexer.search.return_value = []
+            MockIdx.return_value = mock_indexer
+            instance = MagicMock()
+            instance.run.return_value = fake
+            MockRunner.return_value = instance
+
+            os.environ.pop("OPENAI_API_KEY", None)
+            result = runner.invoke(
+                cli,
+                ["generate", "login test", "-d", persist, "-o", output_file, "--run"],
+            )
+        assert result.exit_code == 0
+        instance.run.assert_called_once()
+        # The runner was called with the produced spec file path.
+        called_arg = instance.run.call_args.args[0]
+        assert str(called_arg) == output_file
+
+    def test_generate_run_failure_propagates_exit(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        output_file = str(tmp_path / "out.spec.ts")
+        from playwright_god.runner import RunResult, TestCaseResult
+
+        fake = RunResult(
+            status="failed", duration_ms=1,
+            tests=(TestCaseResult(title="t", status="failed", duration_ms=1),),
+            exit_code=1, stdout="", stderr="",
+        )
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightRunner") as MockRunner,
+        ):
+            MockEmb.return_value = MagicMock()
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 0
+            mock_indexer.search.return_value = []
+            MockIdx.return_value = mock_indexer
+            instance = MagicMock()
+            instance.run.return_value = fake
+            MockRunner.return_value = instance
+
+            os.environ.pop("OPENAI_API_KEY", None)
+            result = runner.invoke(
+                cli,
+                ["generate", "x", "-d", persist, "-o", output_file, "--run"],
+            )
+        assert result.exit_code == 1
+
+    def test_generate_run_setup_error_exits_two(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        output_file = str(tmp_path / "out.spec.ts")
+        from playwright_god.runner import RunnerSetupError
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightRunner") as MockRunner,
+        ):
+            MockEmb.return_value = MagicMock()
+            mock_indexer = MagicMock()
+            mock_indexer.count.return_value = 0
+            mock_indexer.search.return_value = []
+            MockIdx.return_value = mock_indexer
+            instance = MagicMock()
+            instance.run.side_effect = RunnerSetupError("@playwright/test missing")
+            MockRunner.return_value = instance
+
+            os.environ.pop("OPENAI_API_KEY", None)
+            result = runner.invoke(
+                cli,
+                ["generate", "x", "-d", persist, "-o", output_file, "--run"],
+            )
+        assert result.exit_code == 2
+        assert "@playwright/test missing" in result.output

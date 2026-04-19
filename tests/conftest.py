@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 import os
+import shutil
 import uuid
 from pathlib import Path
 
 import pytest
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "requires_node: skip unless `npx` and `@playwright/test` are available locally",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    skip_node = pytest.mark.skip(reason="npx not available; install Node 18+")
+    has_npx = shutil.which("npx") is not None
+    for item in items:
+        if "requires_node" in item.keywords and not has_npx:
+            item.add_marker(skip_node)
 
 from playwright_god.crawler import FileInfo
 from playwright_god.crawler import RepositoryCrawler

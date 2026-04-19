@@ -133,6 +133,57 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 - turns a saved memory map or index inventory into a Markdown test plan
 - groups scenarios by inferred feature area when that metadata is available
 
+`run`
+- shells out to `npx playwright test --reporter=json` against a generated `*.spec.ts`
+- writes a per-run artifact directory (`<artifact-dir>/<UTC-timestamp>/`) containing `report.json` and any HTML/trace output
+- exits `0` on pass, `1` on failure, `2` on setup error (missing `npx`, `package.json`, or `@playwright/test`)
+
+## Running Generated Tests
+
+`playwright-god` can execute the specs it produces, capture structured results, and round-trip them back to the CLI. This unlocks the "is the test I just generated actually green?" feedback loop.
+
+### Prerequisites
+
+- **Node.js 18+** with `npx` on `PATH`
+- A `package.json` containing `@playwright/test` as a (dev) dependency in the directory you point `--target-dir` at (or in any parent of the spec)
+- Playwright browsers installed (`npx playwright install`) the first time you run
+
+### Usage
+
+Run an existing spec:
+
+```bash
+playwright-god run generated_tests/login.spec.ts \
+    --target-dir ./my-app \
+    --artifact-dir ./.pg_runs
+```
+
+Generate and run in one shot (`--run` flag on `generate`):
+
+```bash
+playwright-god generate "log in as an admin" \
+    -m .idx/memory_map.json \
+    -o generated_tests/admin_login.spec.ts \
+    --run --target-dir ./my-app
+```
+
+Emit machine-readable output:
+
+```bash
+playwright-god run generated_tests/login.spec.ts --json
+```
+
+The structured result (`RunResult`) is the same shape consumed by the upcoming
+coverage-aware-planning, iterative-refinement, and spec-aware-update changes.
+
+### Environment forwarding
+
+The runner forwards the parent process environment to `npx playwright test`,
+explicitly preserving `TEST_USERNAME`, `TEST_PASSWORD`, and any `PLAYWRIGHT_*`
+variables. Secret values are **never** logged or copied into any
+`RunResult` field; only the (optional) `stdout`/`stderr` from the Playwright
+process are retained verbatim.
+
 ## Memory Map
 
 The saved memory map keeps the original file inventory and extends it with streamlined repository understanding:
@@ -244,8 +295,8 @@ pytest --cov=playwright_god --cov-report=term-missing
 
 Most recent verification in this workspace on April 19, 2026:
 
-- `tests/unit` + `tests/integration`: `312 passed`
-- package coverage for `playwright_god`: `99%` (`1052` statements, `2` missed)
+- `tests/unit` + `tests/integration`: `351 passed, 1 skipped`
+- package coverage for `playwright_god`: `99%` (`1256` statements, `18` missed)
 
 Per-module coverage from that run:
 
@@ -254,13 +305,14 @@ Per-module coverage from that run:
 | `playwright_god/__init__.py` | `100%` |
 | `playwright_god/auth_templates.py` | `100%` |
 | `playwright_god/chunker.py` | `100%` |
-| `playwright_god/cli.py` | `99%` |
+| `playwright_god/cli.py` | `97%` |
 | `playwright_god/crawler.py` | `100%` |
 | `playwright_god/embedder.py` | `100%` |
 | `playwright_god/feature_map.py` | `100%` |
 | `playwright_god/generator.py` | `100%` |
 | `playwright_god/indexer.py` | `100%` |
 | `playwright_god/memory_map.py` | `100%` |
+| `playwright_god/runner.py` | `94%` |
 
 Notes:
 

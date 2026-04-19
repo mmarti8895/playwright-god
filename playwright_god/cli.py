@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -33,6 +34,7 @@ from .memory_map import (
     load_memory_map,
     save_memory_map,
 )
+from .runner import PlaywrightRunner, RunResult, RunnerSetupError
 
 
 def _resolve_provider_config(
@@ -360,6 +362,31 @@ def index(
     hidden=True,
     help="Use the deterministic mock embedder (for testing without network access).",
 )
+@click.option(
+    "--run",
+    "run_after_generate",
+    is_flag=True,
+    default=False,
+    help=(
+        "After generation, execute the produced spec via `npx playwright test "
+        "--reporter=json` and exit non-zero if any test fails. Requires --output "
+        "(or a temp file is created)."
+    ),
+)
+@click.option(
+    "--target-dir",
+    "run_target_dir",
+    default=None,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="Playwright project directory used when --run is set.",
+)
+@click.option(
+    "--artifact-dir",
+    "run_artifact_dir",
+    default=None,
+    type=click.Path(file_okay=False, dir_okay=True),
+    help="Artifact root directory used when --run is set.",
+)
 def generate(
     description: str,
     persist_dir: str,
@@ -376,6 +403,9 @@ def generate(
     redact_secrets: bool,
     memory_map: str | None,
     mock_embedder: bool,
+    run_after_generate: bool,
+    run_target_dir: str | None,
+    run_artifact_dir: str | None,
 ) -> None:
     """Generate a Playwright test for the given DESCRIPTION.
 
@@ -499,6 +529,31 @@ def generate(
         click.echo(f"Test written to: {output}", err=True)
     else:
         click.echo(test_code)
+
+    if run_after_generate:
+        spec_path = output
+        if spec_path is None:
+            import tempfile
+
+            tmp = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".spec.ts", delete=False, encoding="utf-8"
+            )
+            tmp.write(test_code)
+            tmp.close()
+            spec_path = tmp.name
+            click.echo(f"Wrote temp spec to: {spec_path}", err=True)
+
+        runner = PlaywrightRunner(
+            target_dir=run_target_dir,
+            artifact_dir=run_artifact_dir,
+        )
+        try:
+            result = runner.run(spec_path)
+        except RunnerSetupError as exc:
+            click.echo(f"Error: {exc}", err=True)
+            sys.exit(2)
+        _print_run_summary(result)
+        sys.exit(0 if result.status == "passed" else 1)
 
 
 @cli.command()
@@ -696,6 +751,109 @@ def plan(
         click.echo(f"Test plan written to: {output}", err=True)
     else:
         click.echo(plan_text)
+
+
+def _print_run_summary(result: RunResult, *, json_output: bool = False) -> None:
+    """Render a ``RunResult`` to stderr (human) or stdout (json)."""
+
+    if json_output:
+        payload = {
+            "status": result.status,
+            "duration_ms": result.duration_ms,
+            "exit_code": result.exit_code,
+            "spec_path": str(result.spec_path) if result.spec_path else None,
+            "report_dir": str(result.report_dir) if result.report_dir else None,
+            "tests": [
+                {
+                    "title": t.title,
+                    "status": t.status,
+                    "duration_ms": t.duration_ms,
+                    "error_message": t.error_message,
+                    "trace_path": t.trace_path,
+                }
+                for t in result.tests
+            ],
+        }
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    icon = {"passed": "PASS", "failed": "FAIL", "error": "ERROR"}.get(result.status, "?")
+    click.echo(
+        f"[{icon}] {len(result.tests)} test(s) in {result.duration_ms} ms "
+        f"(exit={result.exit_code})",
+        err=True,
+    )
+    for t in result.tests:
+        line = f"  - {t.status:<8} {t.title} ({t.duration_ms} ms)"
+        click.echo(line, err=True)
+        if t.error_message and t.status not in ("passed", "skipped"):
+            for err_line in t.error_message.splitlines()[:5]:
+                click.echo(f"      {err_line}", err=True)
+    if result.report_dir:
+        click.echo(f"Artifacts: {result.report_dir}", err=True)
+
+
+@cli.command(name="run")
+@click.argument("spec_path", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--target-dir",
+    "-t",
+    default=None,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help=(
+        "Directory containing the Playwright project's package.json. "
+        "Defaults to walking up from SPEC_PATH until a package.json is found."
+    ),
+)
+@click.option(
+    "--reporter",
+    default="json",
+    show_default=True,
+    help="Playwright reporter to request (only 'json' is parsed).",
+)
+@click.option(
+    "--artifact-dir",
+    default=None,
+    type=click.Path(file_okay=False, dir_okay=True),
+    help=(
+        "Root directory for per-run artifact subdirectories. "
+        "Defaults to '<target-dir>/.pg_runs'."
+    ),
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit the RunResult as JSON on stdout (in addition to artifacts on disk).",
+)
+def run(
+    spec_path: str,
+    target_dir: str | None,
+    reporter: str,
+    artifact_dir: str | None,
+    json_output: bool,
+) -> None:
+    """Execute a generated Playwright SPEC_PATH and report results.
+
+    Shells out to ``npx playwright test --reporter=json`` and writes
+    artifacts under ``<artifact-dir>/<UTC-timestamp>/``. Exits non-zero
+    when any test fails or the runner could not start.
+    """
+
+    runner = PlaywrightRunner(
+        target_dir=target_dir,
+        artifact_dir=artifact_dir,
+        reporter=reporter,
+    )
+    try:
+        result = runner.run(spec_path)
+    except RunnerSetupError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
+
+    _print_run_summary(result, json_output=json_output)
+    sys.exit(0 if result.status == "passed" else 1)
 
 
 def main() -> None:

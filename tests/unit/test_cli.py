@@ -2172,3 +2172,458 @@ def test_graph_extract_check_with_corrupt_persisted(runner, tmp_path):
     )
     assert result.exit_code == 2
     assert "could not load" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Update command tests
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateCommand:
+    """Tests for the `update` CLI command."""
+
+    def test_update_help(self, runner):
+        result = runner.invoke(cli, ["update", "--help"])
+        assert result.exit_code == 0
+        assert "--spec-dir" in result.output
+        assert "--dry-run" in result.output
+        assert "--strict-update" in result.output
+        assert "--allow-dirty" in result.output
+
+    def test_update_dry_run_shows_plan(self, runner, tmp_path):
+        """--dry-run prints the plan without executing."""
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        # Setup
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+        persist_dir.mkdir()
+
+        # Create flow graph with routes
+        fg = FlowGraph.from_iterables(
+            nodes=[
+                Route(method="GET", path="/"),
+                Route(method="GET", path="/login"),
+            ]
+        )
+        fg_path = persist_dir / "flow_graph.json"
+        fg_path.write_text(fg.to_json(), encoding="utf-8")
+
+        # Create a spec covering one node
+        (spec_dir / "home.spec.ts").write_text(
+            '// @pg-tags route:GET:/\ntest("home", async () => {});',
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "update",
+                "--spec-dir", str(spec_dir),
+                "--persist-dir", str(persist_dir),
+                "--flow-graph", str(fg_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "--dry-run" in result.output
+        assert "add:" in result.output
+        assert "keep:" in result.output
+
+    def test_update_saves_plan_json(self, runner, tmp_path):
+        """Update saves update_plan.json to persist dir."""
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+
+        fg = FlowGraph.from_iterables(nodes=[Route(method="GET", path="/")])
+        fg_path = tmp_path / "flow_graph.json"
+        fg_path.write_text(fg.to_json(), encoding="utf-8")
+
+        result = runner.invoke(
+            cli,
+            [
+                "update",
+                "--spec-dir", str(spec_dir),
+                "--persist-dir", str(persist_dir),
+                "--flow-graph", str(fg_path),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        plan_path = persist_dir / "update_plan.json"
+        assert plan_path.exists()
+        # Verify it's valid JSON
+        import json
+        data = json.loads(plan_path.read_text())
+        assert "add" in data
+        assert "summary" in data
+
+    def test_update_refuses_dirty_tree_by_default(self, runner, tmp_path):
+        """Update refuses to run if spec files have unstaged changes."""
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+
+        fg = FlowGraph.from_iterables(nodes=[Route(method="GET", path="/")])
+        fg_path = tmp_path / "flow_graph.json"
+        fg_path.write_text(fg.to_json(), encoding="utf-8")
+
+        with patch("playwright_god.cli._check_dirty_specs") as mock_check:
+            mock_check.return_value = ["specs/dirty.spec.ts"]
+
+            result = runner.invoke(
+                cli,
+                [
+                    "update",
+                    "--spec-dir", str(spec_dir),
+                    "--persist-dir", str(persist_dir),
+                    "--flow-graph", str(fg_path),
+                ],
+            )
+
+        assert result.exit_code != 0
+        assert "Dirty" in result.output or "unstaged" in result.output
+
+    def test_update_allow_dirty_bypasses_check(self, runner, tmp_path):
+        """--allow-dirty bypasses the dirty tree check."""
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+
+        fg = FlowGraph.from_iterables(nodes=[Route(method="GET", path="/")])
+        fg_path = tmp_path / "flow_graph.json"
+        fg_path.write_text(fg.to_json(), encoding="utf-8")
+
+        with patch("playwright_god.cli._check_dirty_specs") as mock_check:
+            mock_check.return_value = ["specs/dirty.spec.ts"]
+
+            result = runner.invoke(
+                cli,
+                [
+                    "update",
+                    "--spec-dir", str(spec_dir),
+                    "--persist-dir", str(persist_dir),
+                    "--flow-graph", str(fg_path),
+                    "--allow-dirty",
+                    "--dry-run",
+                ],
+            )
+
+        # Should succeed despite dirty files
+        assert result.exit_code == 0
+
+    def test_update_extracts_graph_when_not_provided(self, runner, tmp_path):
+        """Update extracts flow graph from cwd if not provided."""
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+
+        mock_fg = FlowGraph.from_iterables(nodes=[Route(method="GET", path="/")])
+
+        with (
+            patch("playwright_god.cli._check_dirty_specs", return_value=[]),
+            patch("playwright_god.extractors.extract", return_value=mock_fg),
+        ):
+            result = runner.invoke(
+                cli,
+                [
+                    "update",
+                    "--spec-dir", str(spec_dir),
+                    "--persist-dir", str(persist_dir),
+                    "--dry-run",
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Extracting flow graph" in result.output
+
+    def test_update_loads_prior_outcomes(self, runner, tmp_path):
+        """Update loads prior outcomes when artifact-dir is provided."""
+        import json
+
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+        artifact_dir = tmp_path / "artifacts"
+
+        fg = FlowGraph.from_iterables(nodes=[Route(method="GET", path="/")])
+        fg_path = tmp_path / "flow_graph.json"
+        fg_path.write_text(fg.to_json(), encoding="utf-8")
+
+        # Create spec
+        spec_file = spec_dir / "home.spec.ts"
+        spec_file.write_text(
+            '// @pg-tags route:GET:/\ntest("home", async () => {});',
+            encoding="utf-8",
+        )
+
+        # Create runs with report
+        runs_dir = artifact_dir / "runs" / "2024-01-15"
+        runs_dir.mkdir(parents=True)
+        report = {
+            "suites": [
+                {"specs": [{"file": str(spec_file), "tests": [{"status": "failed"}]}]}
+            ]
+        }
+        (runs_dir / "report.json").write_text(json.dumps(report), encoding="utf-8")
+
+        result = runner.invoke(
+            cli,
+            [
+                "update",
+                "--spec-dir", str(spec_dir),
+                "--persist-dir", str(persist_dir),
+                "--flow-graph", str(fg_path),
+                "--artifact-dir", str(artifact_dir),
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "prior run outcomes" in result.output
+
+    def test_update_nothing_to_do(self, runner, tmp_path):
+        """Update reports nothing to do when all specs are up-to-date."""
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+
+        fg = FlowGraph.from_iterables(nodes=[Route(method="GET", path="/")])
+        fg_path = tmp_path / "flow_graph.json"
+        fg_path.write_text(fg.to_json(), encoding="utf-8")
+
+        # Spec covers the node (via @pg-tags)
+        spec_file = spec_dir / "home.spec.ts"
+        spec_file.write_text(
+            '// @pg-tags route:GET:/\ntest("home", async () => {});',
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "update",
+                "--spec-dir", str(spec_dir),
+                "--persist-dir", str(persist_dir),
+                "--flow-graph", str(fg_path),
+                "--dry-run",  # Use dry-run mode - simpler test
+            ],
+        )
+
+        assert result.exit_code == 0
+        # With proper tags, the spec should be in 'keep' bucket
+        assert "keep:" in result.output
+        # Verify plan summary is output
+        assert "Update Plan Summary" in result.output
+
+    def test_update_empty_plan_no_dry_run(self, runner, tmp_path):
+        """When plan is empty (all keep), non-dry-run says nothing to do."""
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        persist_dir = tmp_path / "persist"
+
+        fg = FlowGraph.from_iterables(nodes=[Route(method="GET", path="/")])
+        fg_path = tmp_path / "flow_graph.json"
+        fg_path.write_text(fg.to_json(), encoding="utf-8")
+
+        # Spec covers the node (via @pg-tags)
+        spec_file = spec_dir / "home.spec.ts"
+        spec_file.write_text(
+            '// @pg-tags route:GET:/\ntest("home", async () => {});',
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "update",
+                "--spec-dir", str(spec_dir),
+                "--persist-dir", str(persist_dir),
+                "--flow-graph", str(fg_path),
+                "--allow-dirty",  # Skip git check since tmp_path is not a git repo
+            ],
+        )
+
+        assert result.exit_code == 0
+        # Should see "Nothing to do" message
+        assert "Nothing to do" in result.output
+
+
+class TestCheckDirtySpecs:
+    """Tests for _check_dirty_specs helper."""
+
+    def test_returns_empty_when_not_git_repo(self, tmp_path):
+        from playwright_god.cli import _check_dirty_specs
+
+        # tmp_path is not a git repo
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+
+        result = _check_dirty_specs(spec_dir)
+        assert result == []
+
+    def test_returns_dirty_spec_files(self, tmp_path):
+        from playwright_god.cli import _check_dirty_specs
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+
+        with patch("subprocess.run") as mock_run:
+            # Git status: first char is staged status, second is unstaged, then space
+            # "M " = unstaged modification (M in first position, space in second)
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout="M  specs/login.spec.ts\n",
+            )
+
+            result = _check_dirty_specs(spec_dir)
+
+        # M (unstaged) should be detected
+        assert "specs/login.spec.ts" in result
+
+    def test_ignores_non_spec_files(self, tmp_path):
+        from playwright_god.cli import _check_dirty_specs
+
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout="M utils.ts\n",  # Not a .spec.ts file
+            )
+
+            result = _check_dirty_specs(spec_dir)
+
+        assert result == []
+
+
+class TestPrintPlanDetails:
+    """Tests for _print_plan_details helper."""
+
+    def test_prints_add_entries(self, capsys):
+        from playwright_god.cli import _print_plan_details
+        from playwright_god.update_planner import Bucket, PlanEntry, UpdatePlan
+
+        plan = UpdatePlan(
+            add=[
+                PlanEntry(bucket=Bucket.ADD, node_id="page:/login", reason="no spec"),
+                PlanEntry(bucket=Bucket.ADD, node_id="page:/signup", reason="no spec"),
+            ]
+        )
+
+        _print_plan_details(plan)
+        captured = capsys.readouterr()
+
+        assert "Add" in captured.out
+        assert "page:/login" in captured.out
+        assert "page:/signup" in captured.out
+
+    def test_prints_update_entries(self, capsys):
+        from playwright_god.cli import _print_plan_details
+        from playwright_god.update_planner import Bucket, PlanEntry, UpdatePlan
+
+        plan = UpdatePlan(
+            update=[
+                PlanEntry(
+                    bucket=Bucket.UPDATE,
+                    spec_path="tests/home.spec.ts",
+                    reason="prior run failed",
+                ),
+            ]
+        )
+
+        _print_plan_details(plan)
+        captured = capsys.readouterr()
+
+        assert "Update" in captured.out
+        assert "home.spec.ts" in captured.out
+        assert "failed" in captured.out
+
+    def test_prints_review_entries(self, capsys):
+        from playwright_god.cli import _print_plan_details
+        from playwright_god.update_planner import Bucket, PlanEntry, UpdatePlan
+
+        plan = UpdatePlan(
+            review=[
+                PlanEntry(
+                    bucket=Bucket.REVIEW,
+                    spec_path="tests/orphan.spec.ts",
+                    reason="no matching graph node",
+                ),
+            ]
+        )
+
+        _print_plan_details(plan)
+        captured = capsys.readouterr()
+
+        assert "Review" in captured.out
+        assert "orphan.spec.ts" in captured.out
+
+    def test_truncates_long_lists(self, capsys):
+        from playwright_god.cli import _print_plan_details
+        from playwright_god.update_planner import Bucket, PlanEntry, UpdatePlan
+
+        plan = UpdatePlan(
+            add=[
+                PlanEntry(bucket=Bucket.ADD, node_id=f"page:/p{i}", reason="no spec")
+                for i in range(25)
+            ]
+        )
+
+        _print_plan_details(plan)
+        captured = capsys.readouterr()
+
+        assert "more" in captured.out  # "... and X more"
+
+    def test_truncates_long_update_list(self, capsys):
+        from playwright_god.cli import _print_plan_details
+        from playwright_god.update_planner import Bucket, PlanEntry, UpdatePlan
+
+        plan = UpdatePlan(
+            update=[
+                PlanEntry(bucket=Bucket.UPDATE, spec_path=f"tests/s{i}.spec.ts", reason="failed")
+                for i in range(25)
+            ]
+        )
+
+        _print_plan_details(plan)
+        captured = capsys.readouterr()
+
+        assert "Update" in captured.out
+        assert "... and 5 more" in captured.out
+
+    def test_truncates_long_review_list(self, capsys):
+        from playwright_god.cli import _print_plan_details
+        from playwright_god.update_planner import Bucket, PlanEntry, UpdatePlan
+
+        plan = UpdatePlan(
+            review=[
+                PlanEntry(bucket=Bucket.REVIEW, spec_path=f"tests/r{i}.spec.ts", reason="orphan")
+                for i in range(25)
+            ]
+        )
+
+        _print_plan_details(plan)
+        captured = capsys.readouterr()
+
+        assert "Review" in captured.out
+        assert "... and 5 more" in captured.out

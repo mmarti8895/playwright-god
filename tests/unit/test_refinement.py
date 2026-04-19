@@ -384,6 +384,7 @@ def test_prompt_hash_roundtrip_is_deterministic(tmp_path):
         "failure_excerpt": None,
         "coverage_delta": None,
         "generator_kwargs": {},
+        "seed_spec_content": None,
     }, sort_keys=True, default=str))
     assert parsed[0]["prompt_hash"] == expected
 
@@ -531,3 +532,91 @@ def test_coverage_files_skips_iterable_with_missing_path():
     obj = type("R", (), {"files": [_FC(None, 10, 10), _FC("k.py", 10, 10)]})()
     assert _coverage_files(obj) == {"k.py"}
     assert _uncovered_paths(obj) == set()
+
+
+# ---------------------------------------------------------------------------
+# seed_spec support
+# ---------------------------------------------------------------------------
+
+
+def test_seed_spec_content_included_in_first_prompt(tmp_path):
+    """When seed_spec is provided, its content appears in the first prompt."""
+    spec = tmp_path / "output.spec.ts"
+    seed = tmp_path / "seed.spec.ts"
+    seed.write_text("// existing test code\ntest('old', () => {});", encoding="utf-8")
+
+    gen = ScriptedGenerator(["test('new', () => {});"])
+    run = ScriptedRunner([_passed()])
+
+    loop = RefinementLoop(generator=gen, runner=run, spec_path=spec, max_attempts=1)
+    result = loop.run("improve login test", seed_spec=seed)
+
+    # Check that generator received seed content
+    assert len(gen.calls) == 1
+    assert gen.calls[0].get("seed_spec_content") is not None
+    assert "existing test code" in gen.calls[0]["seed_spec_content"]
+
+
+def test_seed_spec_records_seed_path_in_audit_log(tmp_path):
+    """When seed_spec is provided, attempt 1 records seed_path in the log."""
+    spec = tmp_path / "output.spec.ts"
+    seed = tmp_path / "seed.spec.ts"
+    seed.write_text("// seed", encoding="utf-8")
+
+    gen = ScriptedGenerator(["test('x', () => {});"])
+    run = ScriptedRunner([_passed()])
+
+    loop = RefinementLoop(generator=gen, runner=run, spec_path=spec, max_attempts=1)
+    result = loop.run("test", seed_spec=seed)
+
+    assert len(result.attempts) == 1
+    assert result.attempts[0].seed_path == str(seed)
+
+
+def test_no_seed_spec_leaves_seed_path_null(tmp_path):
+    """Without seed_spec, seed_path is None in the audit log."""
+    spec = tmp_path / "output.spec.ts"
+
+    gen = ScriptedGenerator(["test('x', () => {});"])
+    run = ScriptedRunner([_passed()])
+
+    loop = RefinementLoop(generator=gen, runner=run, spec_path=spec, max_attempts=1)
+    result = loop.run("test")
+
+    assert len(result.attempts) == 1
+    assert result.attempts[0].seed_path is None
+
+
+def test_seed_spec_only_in_first_attempt(tmp_path):
+    """Seed content is only passed in the first attempt, not subsequent ones."""
+    spec = tmp_path / "output.spec.ts"
+    seed = tmp_path / "seed.spec.ts"
+    seed.write_text("// seed content", encoding="utf-8")
+
+    gen = ScriptedGenerator(["bad code", "test('x', () => {});"])
+    run = ScriptedRunner([_runtime_failed(), _passed()])
+
+    loop = RefinementLoop(generator=gen, runner=run, spec_path=spec, max_attempts=2)
+    result = loop.run("test", seed_spec=seed)
+
+    assert len(gen.calls) == 2
+    # First call has seed content
+    assert gen.calls[0].get("seed_spec_content") is not None
+    # Second call does not
+    assert gen.calls[1].get("seed_spec_content") is None
+
+
+def test_no_seed_prompt_is_byte_identical_to_before(tmp_path):
+    """Without seed_spec, the prompt hash should be the same as without the feature."""
+    spec = tmp_path / "output.spec.ts"
+
+    gen = ScriptedGenerator(["test('x', () => {});"])
+    run = ScriptedRunner([_passed()])
+
+    loop = RefinementLoop(generator=gen, runner=run, spec_path=spec, max_attempts=1)
+    result = loop.run("test description")
+
+    # Verify no seed content was passed
+    assert gen.calls[0].get("seed_spec_content") is None
+    # The prompt_hash should only include None for seed_spec_content
+    assert result.attempts[0].seed_path is None

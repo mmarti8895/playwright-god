@@ -111,3 +111,83 @@ def test_duplicate_edges_deduplicated():
     e2 = Edge(v.id, r.id, "calls")  # exact duplicate
     g = FlowGraph.from_iterables(nodes=[r, v], edges=[e1, e2])
     assert len(g.edges) == 1
+
+
+# ---------------------------------------------------------------------------
+# covering_specs
+# ---------------------------------------------------------------------------
+
+
+def test_covering_specs_empty_without_spec_index():
+    """covering_specs returns [] when no SpecIndex is attached."""
+    r = Route(method="GET", path="/login")
+    g = FlowGraph.from_iterables([r])
+    assert g.covering_specs("route:GET:/login") == []
+
+
+def test_covering_specs_populated_after_attach():
+    """covering_specs is populated when a SpecIndex is attached."""
+    from playwright_god.spec_index import SpecEntry, SpecIndex
+
+    r = Route(method="GET", path="/login")
+    g = FlowGraph.from_iterables([r])
+
+    spec_index = SpecIndex(entries={
+        "tests/login.spec.ts": SpecEntry(
+            path="tests/login.spec.ts",
+            node_ids=("route:GET:/login",),
+            content_hash="h1",
+        ),
+        "tests/auth.spec.ts": SpecEntry(
+            path="tests/auth.spec.ts",
+            node_ids=("route:GET:/login", "route:GET:/logout"),
+            content_hash="h2",
+        ),
+    })
+
+    g.attach_spec_index(spec_index)
+
+    specs = g.covering_specs("route:GET:/login")
+    assert "tests/login.spec.ts" in specs
+    assert "tests/auth.spec.ts" in specs
+    assert len(specs) == 2
+
+
+def test_covering_specs_unknown_node_returns_empty():
+    """covering_specs for unknown node returns []."""
+    from playwright_god.spec_index import SpecEntry, SpecIndex
+
+    r = Route(method="GET", path="/login")
+    g = FlowGraph.from_iterables([r])
+
+    spec_index = SpecIndex(entries={
+        "tests/login.spec.ts": SpecEntry(
+            path="tests/login.spec.ts",
+            node_ids=("route:GET:/login",),
+            content_hash="h1",
+        ),
+    })
+    g.attach_spec_index(spec_index)
+
+    assert g.covering_specs("route:GET:/unknown") == []
+
+
+def test_attach_spec_index_clears_previous():
+    """Attaching a new SpecIndex clears the previous mappings."""
+    from playwright_god.spec_index import SpecEntry, SpecIndex
+
+    r = Route(method="GET", path="/login")
+    g = FlowGraph.from_iterables([r])
+
+    index1 = SpecIndex(entries={
+        "old.spec.ts": SpecEntry("old.spec.ts", ("route:GET:/login",), "h1"),
+    })
+    g.attach_spec_index(index1)
+    assert "old.spec.ts" in g.covering_specs("route:GET:/login")
+
+    index2 = SpecIndex(entries={
+        "new.spec.ts": SpecEntry("new.spec.ts", ("route:GET:/login",), "h2"),
+    })
+    g.attach_spec_index(index2)
+    assert "new.spec.ts" in g.covering_specs("route:GET:/login")
+    assert "old.spec.ts" not in g.covering_specs("route:GET:/login")

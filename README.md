@@ -281,6 +281,110 @@ replaced with `[REDACTED]`.
 **Cost warning.** Each attempt is a full LLM round-trip plus a Playwright
 run; budget for `max_attempts × (generation + execution)` time per refinement.
 
+## Updating an existing suite
+
+`playwright-god update` compares your existing test specs against the current
+flow graph and recent test outcomes, then produces a **plan** that buckets
+specs into `add`, `update`, `keep`, or `review` actions.
+
+```bash
+# Dry-run: print the plan without making changes
+playwright-god update ./tests/e2e \
+  --graph flow_graph.json \
+  --prior-runs .pg_runs \
+  --dry-run
+
+# Save the plan to a JSON file for inspection
+playwright-god update ./tests/e2e \
+  --graph flow_graph.json \
+  --prior-runs .pg_runs \
+  -o update_plan.json
+```
+
+### Plan buckets
+
+| Bucket   | Description                                                                 |
+|----------|-----------------------------------------------------------------------------|
+| `add`    | Flow-graph nodes not covered by any spec — new tests should be generated.  |
+| `update` | Specs covering renamed/changed nodes or with recent failures.              |
+| `keep`   | Specs that pass and cover unchanged nodes.                                 |
+| `review` | Orphan specs (target nodes removed), pinned specs with missing targets.    |
+
+### Spec annotations
+
+Annotate your specs to guide the update planner:
+
+```typescript
+// @pg-tags route:GET:/users route:POST:/users
+// ↑ Declares which flow-graph nodes this spec covers.
+
+// @pg-pin
+// ↑ Prevents the spec from being auto-updated; forces "keep" or "review".
+```
+
+- **`@pg-tags <node_id> ...`** — Explicitly list the flow-graph node IDs this
+  spec exercises. If omitted, the planner falls back to heuristics (e.g.
+  extracting URLs from `page.goto()` calls).
+- **`@pg-pin`** — Marks the spec as manually maintained. Pinned specs are never
+  placed in the `update` bucket; they go to `keep` if targets exist, or
+  `review` if targets are missing.
+
+Tags and pins are **case-insensitive** and must appear in the first 20 lines
+of the spec file.
+
+### Example: handling a route rename
+
+Suppose `/api/users` is renamed to `/api/v2/users`:
+
+1. Re-extract the flow graph:
+   ```bash
+   playwright-god graph extract --check -o flow_graph.json
+   # ↑ Exits 1 because the graph changed.
+   playwright-god graph extract -o flow_graph.json
+   ```
+
+2. Run the update planner:
+   ```bash
+   playwright-god update ./tests/e2e --graph flow_graph.json --dry-run
+   ```
+
+   Output:
+   ```
+   Update Plan Summary
+   ===================
+   add:    0 specs needed (1 node uncovered)
+   update: 1 spec (target node changed)
+   keep:   5 specs
+   review: 1 spec (orphan — target removed)
+
+   UPDATE: tests/e2e/users.spec.ts
+     Reason: target_changed
+     Old target: route:GET:/api/users
+     New target: route:GET:/api/v2/users
+   ```
+
+3. Apply updates by regenerating the flagged specs:
+   ```bash
+   playwright-god refine "user listing" \
+     -o tests/e2e/users.spec.ts \
+     --seed-spec tests/e2e/users.spec.ts \
+     --max-attempts 2
+   ```
+
+The `--seed-spec` flag passes the existing spec content to the first refinement
+attempt, giving the LLM context about your current test structure.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--graph FILE` | Path to the flow-graph JSON (required). |
+| `--prior-runs DIR` | Directory containing prior `report.json` files for outcome lookup. |
+| `--dry-run` | Print the plan to stdout without writing a file. |
+| `--strict-update` | Fail with exit code 1 if any specs are in `add` or `review`. |
+| `--allow-dirty` | Bypass the Git clean-tree check (useful in CI with generated artifacts). |
+| `-o FILE` | Write the plan to a JSON file. |
+
 ## Memory Map
 
 The saved memory map keeps the original file inventory and extends it with streamlined repository understanding:
@@ -471,10 +575,10 @@ pytest --cov=playwright_god --cov-report=term-missing
 ## Current Coverage
 
 Most recent verification in this workspace on April 19, 2026 (after the
-`flow-graph-extraction` change):
+`spec-aware-update` change):
 
-- `tests/unit` + `tests/integration`: `596 passed, 2 skipped`
-- package coverage for `playwright_god`: `99%` (`2924` statements, `36` missed)
+- `tests/unit` + `tests/integration`: `682 passed, 2 skipped`
+- package coverage for `playwright_god`: `97%` (`3377` statements, `86` missed)
 
 Per-module coverage from that run:
 
@@ -484,7 +588,7 @@ Per-module coverage from that run:
 | `playwright_god/_secrets.py` | `100%` |
 | `playwright_god/auth_templates.py` | `100%` |
 | `playwright_god/chunker.py` | `100%` |
-| `playwright_god/cli.py` | `98%` |
+| `playwright_god/cli.py` | `92%` |
 | `playwright_god/coverage.py` | `98%` |
 | `playwright_god/crawler.py` | `100%` |
 | `playwright_god/embedder.py` | `100%` |
@@ -494,11 +598,13 @@ Per-module coverage from that run:
 | `playwright_god/extractors/python.py` | `99%` |
 | `playwright_god/feature_map.py` | `100%` |
 | `playwright_god/flow_graph.py` | `100%` |
-| `playwright_god/generator.py` | `99%` |
+| `playwright_god/generator.py` | `97%` |
 | `playwright_god/indexer.py` | `100%` |
 | `playwright_god/memory_map.py` | `100%` |
 | `playwright_god/refinement.py` | `100%` |
 | `playwright_god/runner.py` | `96%` |
+| `playwright_god/spec_index.py` | `100%` |
+| `playwright_god/update_planner.py` | `100%` |
 
 Notes:
 

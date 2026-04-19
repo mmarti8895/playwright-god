@@ -73,6 +73,7 @@ class AttemptRecord:
     evaluation: dict
     next_prompt_addendum: str | None
     timestamp: str
+    seed_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -266,8 +267,24 @@ class RefinementLoop:
         self.spec_path = Path(self.spec_path)
 
     # ---- public API ------------------------------------------------------
-    def run(self, description: str) -> RefinementResult:
-        """Execute the loop for ``description`` and return a :class:`RefinementResult`."""
+    def run(
+        self,
+        description: str,
+        *,
+        seed_spec: Path | None = None,
+    ) -> RefinementResult:
+        """Execute the loop for ``description`` and return a :class:`RefinementResult`.
+
+        Parameters
+        ----------
+        description
+            The test scenario description.
+        seed_spec
+            Optional path to an existing spec file. When provided, its contents
+            are included in the first attempt's prompt under a
+            "Current spec to refine" section, allowing the loop to refine an
+            existing test in place rather than generating from scratch.
+        """
 
         log_path = self._open_log()
         attempts: list[AttemptRecord] = []
@@ -281,11 +298,24 @@ class RefinementLoop:
         failure_excerpt: str | None = None
         stop_reason = "max_attempts"
 
+        # Load seed spec content if provided
+        seed_content: str | None = None
+        seed_path_str: str | None = None
+        if seed_spec is not None:
+            seed_spec = Path(seed_spec)
+            if seed_spec.exists():
+                seed_content = seed_spec.read_text(encoding="utf-8")
+                seed_path_str = str(seed_spec)
+
         for attempt in range(1, self.max_attempts + 1):
+            # On first attempt, include seed spec if provided
+            current_seed = seed_content if attempt == 1 else None
+
             spec_code = self.generator.generate(
                 description,
                 failure_excerpt=failure_excerpt,
                 coverage_delta=prev_delta,
+                seed_spec_content=current_seed,
                 **self.generator_kwargs,
             )
             self.spec_path.parent.mkdir(parents=True, exist_ok=True)
@@ -320,6 +350,7 @@ class RefinementLoop:
                     description,
                     failure_excerpt=failure_excerpt,
                     coverage_delta=prev_delta,
+                    seed_spec_content=current_seed,
                 ),
                 spec_path=str(self.spec_path),
                 run_summary=self._run_summary(result),
@@ -331,6 +362,7 @@ class RefinementLoop:
                 },
                 next_prompt_addendum=addendum,
                 timestamp=_now_iso(),
+                seed_path=seed_path_str if attempt == 1 else None,
             )
             attempts.append(record)
             self._append_log(log_path, record)
@@ -525,6 +557,7 @@ class RefinementLoop:
         *,
         failure_excerpt: str | None,
         coverage_delta: CoverageDelta | None,
+        seed_spec_content: str | None = None,
     ) -> str:
         """Compute the same hash the audit-log roundtrip test will recompute."""
 
@@ -543,6 +576,7 @@ class RefinementLoop:
                 else None
             ),
             "generator_kwargs": _stable_dict(self.generator_kwargs),
+            "seed_spec_content": seed_spec_content,
         }
         return prompt_hash(json.dumps(payload, sort_keys=True, default=str))
 

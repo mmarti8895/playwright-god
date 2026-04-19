@@ -482,6 +482,7 @@ class PlaywrightTestGenerator:
         coverage_delta: "object | None" = None,
         flow_graph: "object | None" = None,
         flow_graph_cap: int = 5,
+        seed_spec_content: str | None = None,
     ) -> str:
         context_chunks: list[SearchResult] = []
         if self.indexer is not None:
@@ -541,6 +542,15 @@ class PlaywrightTestGenerator:
                     (combined_extra + "\n\n" + graph_block)
                     if combined_extra
                     else graph_block
+                )
+
+        if seed_spec_content is not None:
+            seed_block = self._format_seed_spec(seed_spec_content)
+            if seed_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + seed_block)
+                    if combined_extra
+                    else seed_block
                 )
 
         prompt = self._build_prompt(description, context_chunks, combined_extra)
@@ -851,6 +861,31 @@ class PlaywrightTestGenerator:
             for path in still_uncovered[:20]:
                 lines.append(f"  - {path}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _format_seed_spec(content: str, *, max_bytes: int = 8192) -> str:
+        """Format a `Current spec to refine` block for seed-based refinement.
+
+        When updating an existing spec, this block provides the current spec's
+        content so the LLM can refine it rather than generating from scratch.
+        """
+
+        if not content or not content.strip():
+            return ""
+        body = content
+        if len(body.encode("utf-8")) > max_bytes:
+            body = body.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+            body = body.rstrip() + "\n// ... (truncated)"
+        return (
+            "Current spec to refine:\n"
+            + ("=" * 60)
+            + "\n```typescript\n"
+            + body.rstrip()
+            + "\n```\n"
+            + ("=" * 60)
+            + "\n\nRefine and improve this existing spec based on the description above. "
+            "Preserve working parts and fix or enhance as needed."
+        )
 
     @staticmethod
     def _redact_secrets(code: str) -> str:

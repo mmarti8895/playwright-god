@@ -233,6 +233,43 @@ class FlowGraph:
     nodes: tuple[Node, ...] = field(default_factory=tuple)
     edges: tuple[Edge, ...] = field(default_factory=tuple)
 
+    # Non-frozen mutable state (populated by attach_spec_index)
+    _covering_specs: dict[str, list[str]] = field(
+        default_factory=dict, repr=False, compare=False, hash=False
+    )
+
+    def covering_specs(self, node_id: str) -> list[str]:
+        """Return spec paths that cover the given node ID.
+
+        Returns an empty list if no SpecIndex has been attached or no specs
+        cover the node.
+        """
+        return self._covering_specs.get(node_id, [])
+
+    def attach_spec_index(self, spec_index) -> None:
+        """Populate covering_specs for all nodes from a SpecIndex.
+
+        Parameters
+        ----------
+        spec_index
+            A :class:`playwright_god.spec_index.SpecIndex` instance with
+            entries mapping spec paths to node IDs.
+        """
+        # Clear existing mappings
+        self._covering_specs.clear()
+
+        # Build reverse index: node_id -> [spec_paths]
+        for entry in spec_index:
+            for node_id in entry.node_ids:
+                if node_id not in self._covering_specs:
+                    self._covering_specs[node_id] = []
+                if entry.path not in self._covering_specs[node_id]:
+                    self._covering_specs[node_id].append(entry.path)
+
+        # Sort for determinism
+        for node_id in self._covering_specs:
+            self._covering_specs[node_id].sort()
+
     # ---- accessors --------------------------------------------------------
     @property
     def routes(self) -> tuple[Route, ...]:

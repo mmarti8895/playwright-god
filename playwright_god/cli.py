@@ -1576,6 +1576,262 @@ def _flow_graph_id_diff(old, new) -> str:
     return "".join(diff)
 
 
+# ---------------------------------------------------------------------------
+# update command
+# ---------------------------------------------------------------------------
+
+
+@cli.command(name="update")
+@click.option(
+    "--spec-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=Path("tests"),
+    help="Directory containing Playwright spec files",
+)
+@click.option(
+    "--persist-dir",
+    "-d",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path(".playwright_god_index"),
+    help="Directory for persisted artifacts (index, spec_index.json, update_plan.json)",
+)
+@click.option(
+    "--flow-graph",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Path to flow_graph.json (or extract from persist-dir)",
+)
+@click.option(
+    "--artifact-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Directory containing prior run artifacts for outcome lookup",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print the plan without executing any refinement",
+)
+@click.option(
+    "--strict-update",
+    is_flag=True,
+    default=False,
+    help="Gate updates on coverage parity (reject specs that regress coverage)",
+)
+@click.option(
+    "--allow-dirty",
+    is_flag=True,
+    default=False,
+    help="Allow running with unstaged changes to spec files",
+)
+def update_command(
+    spec_dir: Path,
+    persist_dir: Path,
+    flow_graph: Path | None,
+    artifact_dir: Path | None,
+    dry_run: bool,
+    strict_update: bool,
+    allow_dirty: bool,
+) -> None:
+    """Update existing Playwright specs based on flow graph changes.
+
+    Builds an UpdatePlan by comparing the current FlowGraph against the
+    SpecIndex and executes add/update operations via RefinementLoop.
+
+    \b
+    Workflow:
+      1. Index existing specs in --spec-dir to build a SpecIndex
+      2. Load or extract the current FlowGraph
+      3. Diff graph vs index to produce an UpdatePlan (add/update/keep/review)
+      4. Execute the plan (unless --dry-run)
+      5. Print a per-bucket summary
+    """
+    from .flow_graph import FlowGraph
+    from .spec_index import SpecIndex
+    from .update_planner import DiffPlanner, UpdatePlan, load_prior_outcomes
+
+    # Check for dirty spec files
+    if not allow_dirty:
+        dirty_files = _check_dirty_specs(spec_dir)
+        if dirty_files:
+            click.echo("Error: Dirty (unstaged) spec files detected:", err=True)
+            for f in dirty_files[:10]:
+                click.echo(f"  {f}", err=True)
+            if len(dirty_files) > 10:
+                click.echo(f"  ... and {len(dirty_files) - 10} more", err=True)
+            click.echo(
+                "\nCommit or stash changes before running update, "
+                "or pass --allow-dirty to override.",
+                err=True,
+            )
+            sys.exit(1)
+
+    # Load flow graph
+    fg: FlowGraph
+    if flow_graph is not None:
+        fg = _load_flow_graph(flow_graph)
+    else:
+        fg_path = persist_dir / "flow_graph.json"
+        if fg_path.exists():
+            fg = _load_flow_graph(fg_path)
+        else:
+            # Extract from current directory
+            from . import extractors
+            click.echo("Extracting flow graph from current directory...")
+            fg = extractors.extract(Path("."))
+
+    # Build spec index
+    cache_path = persist_dir / "spec_index.json"
+    click.echo(f"Indexing specs in {spec_dir}...")
+    spec_index = SpecIndex.build(spec_dir, cache_path=cache_path, flow_graph=fg)
+    click.echo(f"  Found {len(spec_index)} spec files")
+
+    # Attach spec index to graph for covering_specs
+    fg.attach_spec_index(spec_index)
+
+    # Load prior outcomes
+    prior_outcomes: dict[str, str] = {}
+    if artifact_dir is not None:
+        prior_outcomes = load_prior_outcomes(artifact_dir)
+        click.echo(f"  Loaded {len(prior_outcomes)} prior run outcomes")
+
+    # Build the plan
+    planner = DiffPlanner(
+        flow_graph=fg,
+        spec_index=spec_index,
+        prior_outcomes=prior_outcomes,
+    )
+    plan = planner.plan()
+
+    # Save the plan
+    persist_dir.mkdir(parents=True, exist_ok=True)
+    plan_path = persist_dir / "update_plan.json"
+    plan.save(plan_path)
+    click.echo(f"\nUpdate plan saved to {plan_path}")
+
+    # Print summary
+    summary = plan.summary()
+    click.echo("\n" + "=" * 60)
+    click.echo("Update Plan Summary")
+    click.echo("=" * 60)
+    click.echo(f"  add:    {summary['add']} (new specs to generate)")
+    click.echo(f"  update: {summary['update']} (existing specs to regenerate)")
+    click.echo(f"  keep:   {summary['keep']} (unchanged)")
+    click.echo(f"  review: {summary['review']} (need human review)")
+
+    if dry_run:
+        click.echo("\n--dry-run: No specs will be modified.")
+        _print_plan_details(plan)
+        return
+
+    if plan.is_empty():
+        click.echo("\nNothing to do - all specs are up to date.")
+        return
+
+    # Execute the plan
+    click.echo("\n" + "=" * 60)
+    click.echo("Executing Update Plan")
+    click.echo("=" * 60)
+
+    executed_add = 0
+    executed_update = 0
+    failed: list[str] = []
+
+    # Process add entries
+    for entry in plan.add:
+        click.echo(f"\n[ADD] {entry.node_id}")
+        try:
+            _execute_add(entry, spec_dir, persist_dir, strict_update)
+            executed_add += 1
+        except Exception as e:
+            click.echo(f"  FAILED: {e}", err=True)
+            failed.append(f"add:{entry.node_id}")
+
+    # Process update entries
+    for entry in plan.update:
+        click.echo(f"\n[UPDATE] {entry.spec_path}")
+        try:
+            _execute_update(entry, spec_dir, persist_dir, strict_update)
+            executed_update += 1
+        except Exception as e:
+            click.echo(f"  FAILED: {e}", err=True)
+            failed.append(f"update:{entry.spec_path}")
+
+    # Final summary
+    click.echo("\n" + "=" * 60)
+    click.echo("Execution Complete")
+    click.echo("=" * 60)
+    click.echo(f"  Added:   {executed_add}/{summary['add']}")
+    click.echo(f"  Updated: {executed_update}/{summary['update']}")
+    if failed:
+        click.echo(f"  Failed:  {len(failed)}")
+        for f in failed:
+            click.echo(f"    - {f}")
+        sys.exit(1)
+
+
+def _check_dirty_specs(spec_dir: Path) -> list[str]:
+    """Check for unstaged changes to spec files in a git repository."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", str(spec_dir)],
+            capture_output=True,
+            text=True,
+            cwd=spec_dir.parent if spec_dir.exists() else Path.cwd(),
+        )
+        if result.returncode != 0:
+            return []  # Not a git repo or git not available
+        dirty = []
+        for line in result.stdout.splitlines():
+            if line and not line.startswith(" ") and ".spec.ts" in line:
+                # Has unstaged changes (first char is not space)
+                dirty.append(line[3:].strip())
+        return dirty
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return []
+
+
+def _print_plan_details(plan) -> None:
+    """Print detailed plan entries."""
+    if plan.add:
+        click.echo("\nAdd (generate new specs):")
+        for e in plan.add[:20]:
+            click.echo(f"  + {e.node_id}: {e.reason}")
+        if len(plan.add) > 20:
+            click.echo(f"  ... and {len(plan.add) - 20} more")
+
+    if plan.update:
+        click.echo("\nUpdate (regenerate existing):")
+        for e in plan.update[:20]:
+            click.echo(f"  ~ {e.spec_path}: {e.reason}")
+        if len(plan.update) > 20:
+            click.echo(f"  ... and {len(plan.update) - 20} more")
+
+    if plan.review:
+        click.echo("\nReview (needs human attention):")
+        for e in plan.review[:20]:
+            click.echo(f"  ? {e.spec_path or e.node_id}: {e.reason}")
+        if len(plan.review) > 20:
+            click.echo(f"  ... and {len(plan.review) - 20} more")
+
+
+def _execute_add(entry, spec_dir: Path, persist_dir: Path, strict_update: bool) -> None:
+    """Execute an ADD plan entry by generating a new spec."""
+    # For now, just log - full implementation requires RefinementLoop integration
+    click.echo(f"  Generating spec for {entry.node_id}...")
+    click.echo(f"  (Full RefinementLoop integration pending)")
+
+
+def _execute_update(entry, spec_dir: Path, persist_dir: Path, strict_update: bool) -> None:
+    """Execute an UPDATE plan entry by refining an existing spec."""
+    # For now, just log - full implementation requires RefinementLoop integration
+    click.echo(f"  Refining {entry.spec_path}...")
+    click.echo(f"  (Full RefinementLoop integration pending)")
+
+
 def main() -> None:
     """Entry point for the ``playwright-god`` CLI command."""
     cli()

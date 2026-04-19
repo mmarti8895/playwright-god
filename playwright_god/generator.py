@@ -503,6 +503,8 @@ class PlaywrightTestGenerator:
         extra_context: str | None = None,
         auth_type: str | None = None,
         redact_secrets: bool = True,
+        uncovered_excerpts: Sequence[tuple[str, int, int, str]] | None = None,
+        uncovered_cap: int = 12,
     ) -> str:
         context_chunks: list[SearchResult] = []
         if self.indexer is not None:
@@ -526,13 +528,29 @@ class PlaywrightTestGenerator:
         elif auth_extra:
             combined_extra = auth_extra
 
+        if uncovered_excerpts:
+            gap_block = self._format_uncovered_block(
+                uncovered_excerpts, cap=uncovered_cap
+            )
+            if gap_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + gap_block) if combined_extra else gap_block
+                )
+
         prompt = self._build_prompt(description, context_chunks, combined_extra)
         result = self.llm_client.complete(prompt)
         if redact_secrets:
             result = self._redact_secrets(result)
         return result
 
-    def plan(self, memory_map_text: str, focus: str | None = None) -> str:
+    def plan(
+        self,
+        memory_map_text: str,
+        focus: str | None = None,
+        *,
+        coverage: dict | None = None,
+        prioritize: str = "absolute",
+    ) -> str:
         parts: list[str] = [
             "Below is a memory map of the indexed repository. Use it to propose a comprehensive Playwright test plan.",
             "",
@@ -542,13 +560,96 @@ class PlaywrightTestGenerator:
         ]
         if focus:
             parts += [f"Focus area: {focus}", ""]
+
+        if coverage:
+            delta = self._format_coverage_delta(coverage, prioritize=prioritize)
+            if delta:
+                parts += [delta, ""]
+
         parts += [
             "Generate a Markdown test plan. For each feature area list specific, actionable test scenarios in plain English.",
         ]
+        if coverage:
+            parts += [
+                "Include a `## Coverage Delta` section that lists the highest-priority "
+                "uncovered files and the scenarios that would close those gaps.",
+            ]
         return self.llm_client.complete(
             "\n".join(parts),
             system_prompt=PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT,
         )
+
+    @staticmethod
+    def _format_coverage_delta(coverage: dict, *, prioritize: str = "absolute") -> str:
+        """Format a `Coverage Delta` block listing prioritised uncovered files."""
+
+        files = coverage.get("files") or []
+        if not files:
+            return ""
+
+        def _key(entry: dict):
+            uncovered = len(entry.get("uncovered_lines") or [])
+            percent = float(entry.get("percent", 100.0))
+            if prioritize == "percent":
+                # Lowest covered percent first, then most uncovered lines.
+                return (percent, -uncovered)
+            # Default: most uncovered lines first, then lowest percent.
+            return (-uncovered, percent)
+
+        ranked = sorted(
+            (e for e in files if isinstance(e, dict) and e.get("uncovered_lines")),
+            key=_key,
+        )
+        if not ranked:
+            return ""
+
+        summary = coverage.get("summary") or {}
+        lines: list[str] = ["## Coverage Delta"]
+        if summary:
+            lines.append(
+                f"Overall: {summary.get('percent', 0.0)}% covered "
+                f"({summary.get('covered_lines', 0)}/"
+                f"{summary.get('covered_lines', 0) + summary.get('uncovered_lines', 0)} lines, "
+                f"{summary.get('files', 0)} files)."
+            )
+        lines.append("")
+        lines.append(f"Prioritised by: {prioritize}")
+        lines.append("")
+        for entry in ranked[:12]:
+            uncovered = entry.get("uncovered_lines") or []
+            lines.append(
+                f"- `{entry.get('path', '?')}` — {entry.get('percent', 0.0)}% "
+                f"covered, {len(uncovered)} uncovered line(s)"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_uncovered_block(
+        excerpts: Sequence[tuple[str, int, int, str]],
+        *,
+        cap: int = 12,
+    ) -> str:
+        """Format an `Uncovered code (gaps)` block to inject into a generate prompt.
+
+        Each excerpt is ``(file_path, start_line, end_line, source_text)``.
+        Capped at ``cap`` entries.
+        """
+
+        if not excerpts:
+            return ""
+        head = excerpts[: max(0, int(cap))]
+        if not head:
+            return ""
+        lines: list[str] = ["Uncovered code (gaps):", "=" * 60]
+        for path, start, end, body in head:
+            lines.append(f"--- {path} (lines {start}-{end}) ---")
+            lines.append(body.rstrip())
+            lines.append("")
+        if len(excerpts) > len(head):
+            lines.append(
+                f"(+{len(excerpts) - len(head)} more uncovered excerpts omitted)"
+            )
+        return "\n".join(lines)
 
     @staticmethod
     def _redact_secrets(code: str) -> str:

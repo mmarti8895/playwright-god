@@ -387,6 +387,43 @@ def index(
     type=click.Path(file_okay=False, dir_okay=True),
     help="Artifact root directory used when --run is set.",
 )
+@click.option(
+    "--coverage",
+    "coverage_flag",
+    is_flag=True,
+    default=False,
+    help=(
+        "Enable V8 frontend coverage capture during --run (sets "
+        "PLAYWRIGHT_GOD_COVERAGE_DIR for the bundled fixture)."
+    ),
+)
+@click.option(
+    "--backend-coverage",
+    "backend_coverage_cmd",
+    default=None,
+    help=(
+        "Shell command that starts the backend under coverage. When set, "
+        "the backend is started before --run and stopped afterwards. "
+        "Implies --coverage."
+    ),
+)
+@click.option(
+    "--coverage-report",
+    "coverage_report_path",
+    default=None,
+    type=click.Path(file_okay=True, dir_okay=False),
+    help=(
+        "Path to an existing coverage report JSON to inject as 'Uncovered "
+        "code (gaps)' excerpts into the generation prompt."
+    ),
+)
+@click.option(
+    "--coverage-cap",
+    default=12,
+    show_default=True,
+    type=int,
+    help="Maximum uncovered excerpts to include in the prompt.",
+)
 def generate(
     description: str,
     persist_dir: str,
@@ -406,6 +443,10 @@ def generate(
     run_after_generate: bool,
     run_target_dir: str | None,
     run_artifact_dir: str | None,
+    coverage_flag: bool,
+    backend_coverage_cmd: str | None,
+    coverage_report_path: str | None,
+    coverage_cap: int,
 ) -> None:
     """Generate a Playwright test for the given DESCRIPTION.
 
@@ -506,6 +547,29 @@ def generate(
 
     extra_context = "\n\n".join(extra_parts) if extra_parts else None
 
+    # Optional uncovered-code excerpts loaded from a prior coverage report.
+    uncovered_excerpts: list[tuple[str, int, int, str]] | None = None
+    if coverage_report_path:
+        from .coverage import coverage_from_dict
+
+        try:
+            with open(coverage_report_path, "r", encoding="utf-8") as fh:
+                _cov_payload = json.load(fh)
+            _cov_report = coverage_from_dict(_cov_payload)
+            uncovered_excerpts = _build_uncovered_excerpts(
+                _cov_report, cap=coverage_cap
+            )
+            click.echo(
+                f"Coverage report loaded from: {coverage_report_path!r} "
+                f"({len(uncovered_excerpts)} uncovered excerpt(s))",
+                err=True,
+            )
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+            click.echo(
+                f"Warning: could not load --coverage-report {coverage_report_path!r}: {exc}",
+                err=True,
+            )
+
     generator = PlaywrightTestGenerator(
         llm_client=llm_client,
         indexer=indexer,
@@ -521,6 +585,8 @@ def generate(
         extra_context=extra_context,
         auth_type=auth_type,
         redact_secrets=redact_secrets,
+        uncovered_excerpts=uncovered_excerpts,
+        uncovered_cap=coverage_cap,
     )
 
     if output:
@@ -546,9 +612,35 @@ def generate(
         runner = PlaywrightRunner(
             target_dir=run_target_dir,
             artifact_dir=run_artifact_dir,
+            coverage=coverage_flag or bool(backend_coverage_cmd),
         )
         try:
-            result = runner.run(spec_path)
+            if backend_coverage_cmd:
+                from .coverage import CoverageCollector
+
+                collector = CoverageCollector(
+                    frontend=True,
+                    backend_cmd=backend_coverage_cmd,
+                )
+                captured: dict[str, RunResult] = {}
+
+                def _run() -> None:
+                    captured["r"] = runner.run(spec_path)
+
+                merged = collector.collect(_run)
+                result = captured["r"]
+                # Persist the merged report alongside the run artifacts.
+                if result.report_dir is not None:
+                    from .coverage import coverage_to_dict
+
+                    cov_path = Path(result.report_dir) / "coverage_merged.json"
+                    cov_path.write_text(
+                        json.dumps(coverage_to_dict(merged), indent=2),
+                        encoding="utf-8",
+                    )
+                    click.echo(f"Coverage report: {cov_path}", err=True)
+            else:
+                result = runner.run(spec_path)
         except RunnerSetupError as exc:
             click.echo(f"Error: {exc}", err=True)
             sys.exit(2)
@@ -634,6 +726,28 @@ def generate(
     hidden=True,
     help="Use the deterministic mock embedder (for testing without network access).",
 )
+@click.option(
+    "--coverage-report",
+    "coverage_report_path",
+    default=None,
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help=(
+        "Path to a coverage report JSON (from `playwright-god run --coverage`). "
+        "Adds a `## Coverage Delta` section and prioritises feature areas by "
+        "uncovered code."
+    ),
+)
+@click.option(
+    "--prioritize",
+    type=click.Choice(["absolute", "percent"], case_sensitive=False),
+    default="absolute",
+    show_default=True,
+    help=(
+        "How to rank uncovered files in the Coverage Delta section: "
+        "'absolute' (most uncovered lines first) or 'percent' (lowest "
+        "covered percentage first)."
+    ),
+)
 def plan(
     memory_map: str | None,
     persist_dir: str,
@@ -645,6 +759,8 @@ def plan(
     api_key: str | None,
     ollama_url: str,
     mock_embedder: bool,  # noqa: ARG001
+    coverage_report_path: str | None,
+    prioritize: str,
 ) -> None:
     """Generate an AI-powered Playwright test plan from the indexed codebase.
 
@@ -743,7 +859,26 @@ def plan(
     if focus:
         click.echo(f"Focus: {focus}", err=True)
 
-    plan_text = generator.plan(memory_map_text, focus=focus)
+    coverage_payload: dict | None = None
+    if coverage_report_path:
+        try:
+            with open(coverage_report_path, "r", encoding="utf-8") as fh:
+                coverage_payload = _coverage_payload_for_plan(json.load(fh))
+            click.echo(
+                f"Coverage report loaded from: {coverage_report_path!r}", err=True
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            click.echo(
+                f"Warning: could not load --coverage-report {coverage_report_path!r}: {exc}",
+                err=True,
+            )
+
+    plan_text = generator.plan(
+        memory_map_text,
+        focus=focus,
+        coverage=coverage_payload,
+        prioritize=prioritize.lower(),
+    )
 
     if output:
         with open(output, "w", encoding="utf-8") as fh:
@@ -827,12 +962,30 @@ def _print_run_summary(result: RunResult, *, json_output: bool = False) -> None:
     default=False,
     help="Emit the RunResult as JSON on stdout (in addition to artifacts on disk).",
 )
+@click.option(
+    "--coverage",
+    "coverage_flag",
+    is_flag=True,
+    default=False,
+    help="Enable V8 frontend coverage capture (Chromium only).",
+)
+@click.option(
+    "--backend-coverage",
+    "backend_coverage_cmd",
+    default=None,
+    help=(
+        "Shell command that starts the backend under `coverage run`. "
+        "Implies --coverage."
+    ),
+)
 def run(
     spec_path: str,
     target_dir: str | None,
     reporter: str,
     artifact_dir: str | None,
     json_output: bool,
+    coverage_flag: bool,
+    backend_coverage_cmd: str | None,
 ) -> None:
     """Execute a generated Playwright SPEC_PATH and report results.
 
@@ -845,15 +998,229 @@ def run(
         target_dir=target_dir,
         artifact_dir=artifact_dir,
         reporter=reporter,
+        coverage=coverage_flag or bool(backend_coverage_cmd),
     )
     try:
-        result = runner.run(spec_path)
+        if backend_coverage_cmd:
+            from .coverage import CoverageCollector, coverage_to_dict
+
+            collector = CoverageCollector(
+                frontend=True, backend_cmd=backend_coverage_cmd
+            )
+            captured: dict[str, RunResult] = {}
+
+            def _run() -> None:
+                captured["r"] = runner.run(spec_path)
+
+            merged = collector.collect(_run)
+            result = captured["r"]
+            if result.report_dir is not None:
+                cov_path = Path(result.report_dir) / "coverage_merged.json"
+                cov_path.write_text(
+                    json.dumps(coverage_to_dict(merged), indent=2),
+                    encoding="utf-8",
+                )
+                click.echo(f"Coverage report: {cov_path}", err=True)
+        else:
+            result = runner.run(spec_path)
     except RunnerSetupError as exc:
         click.echo(f"Error: {exc}", err=True)
         sys.exit(2)
 
     _print_run_summary(result, json_output=json_output)
     sys.exit(0 if result.status == "passed" else 1)
+
+
+# ---------------------------------------------------------------------------
+# Coverage helpers + `coverage` command group
+# ---------------------------------------------------------------------------
+
+
+def _coverage_payload_for_plan(report_dict: dict) -> dict:
+    """Convert a serialized CoverageReport dict into the shape `plan` expects."""
+
+    files_in = report_dict.get("files") or {}
+    out_files: list[dict] = []
+    total_covered = 0
+    total_uncovered = 0
+    for path, entry in sorted(files_in.items()):
+        if not isinstance(entry, dict):
+            continue
+        total = int(entry.get("total_lines", 0))
+        covered = int(entry.get("covered_lines", 0))
+        uncovered = max(0, total - covered)
+        total_covered += covered
+        total_uncovered += uncovered
+        percent = entry.get("percent")
+        if percent is None:
+            percent = (covered / total * 100.0) if total else 100.0
+        out_files.append(
+            {
+                "path": path,
+                "covered_lines": list(range(1, covered + 1)),
+                "uncovered_lines": list(range(1, uncovered + 1)),
+                "percent": round(float(percent), 2),
+            }
+        )
+    total = total_covered + total_uncovered
+    return {
+        "summary": {
+            "files": len(out_files),
+            "covered_lines": total_covered,
+            "uncovered_lines": total_uncovered,
+            "percent": round((total_covered / total * 100.0) if total else 100.0, 2),
+        },
+        "files": out_files,
+    }
+
+
+def _build_uncovered_excerpts(report, *, cap: int = 12, workdir: Path | None = None):
+    """Build (path, start, end, body) tuples from a CoverageReport's gaps."""
+
+    base = Path(workdir) if workdir else Path.cwd()
+    out: list[tuple[str, int, int, str]] = []
+    files = getattr(report, "files", {}) or {}
+    ranked = sorted(
+        files.values(),
+        key=lambda fc: -sum((end - start + 1) for start, end in fc.missing_line_ranges),
+    )
+    for fc in ranked:
+        if len(out) >= cap:
+            break
+        if not fc.missing_line_ranges:
+            continue
+        candidate = Path(fc.path)
+        path = candidate if candidate.is_absolute() else base / candidate
+        if not path.is_file():
+            continue
+        try:
+            source_lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for start, end in fc.missing_line_ranges:
+            if len(out) >= cap:
+                break
+            snippet = "\n".join(source_lines[start - 1 : end])
+            out.append((fc.path, start, end, snippet))
+    return out
+
+
+@cli.group(name="coverage")
+def coverage_group() -> None:
+    """Coverage-report inspection commands."""
+
+
+@coverage_group.command(name="report")
+@click.argument("report_path", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["text", "json", "html"], case_sensitive=False),
+    default="text",
+    show_default=True,
+    help="Output format.",
+)
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    type=click.Path(dir_okay=False),
+    help="Write the rendered report to this file (default: stdout).",
+)
+def coverage_report_cmd(report_path: str, fmt: str, output: str | None) -> None:
+    """Render a coverage report (read-only)."""
+
+    try:
+        with open(report_path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        click.echo(f"Error: could not load {report_path!r}: {exc}", err=True)
+        sys.exit(1)
+
+    fmt = fmt.lower()
+    if fmt == "json":
+        rendered = json.dumps(payload, indent=2)
+    elif fmt == "html":
+        rendered = _render_coverage_html(payload)
+    else:
+        rendered = _render_coverage_text(payload)
+
+    if output:
+        Path(output).write_text(rendered, encoding="utf-8")
+        click.echo(f"Coverage report written to: {output}", err=True)
+    else:
+        click.echo(rendered)
+
+
+def _render_coverage_text(payload: dict) -> str:
+    totals = payload.get("totals") or {}
+    files = payload.get("files") or {}
+    lines: list[str] = [
+        "Coverage report",
+        "===============",
+        f"Source       : {payload.get('source', '?')}",
+        f"Generated at : {payload.get('generated_at', '?')}",
+        f"Files        : {totals.get('total_files', len(files))}",
+        f"Lines        : {totals.get('covered_lines', 0)}/"
+        f"{totals.get('total_lines', 0)} ({totals.get('percent', 0.0)}%)",
+        "",
+        "Per file (least covered first):",
+    ]
+    rows = []
+    for path, entry in files.items():
+        if not isinstance(entry, dict):
+            continue
+        rows.append(
+            (
+                float(entry.get("percent", 100.0)),
+                path,
+                int(entry.get("covered_lines", 0)),
+                int(entry.get("total_lines", 0)),
+                entry.get("missing_line_ranges") or [],
+            )
+        )
+    rows.sort(key=lambda r: (r[0], -r[3]))
+    for percent, path, covered, total, missing in rows[:50]:
+        miss_str = ", ".join(
+            f"{a}-{b}" if a != b else f"{a}" for a, b in missing[:6]
+        )
+        if len(missing) > 6:
+            miss_str += f", +{len(missing) - 6} more"
+        lines.append(
+            f"  {percent:6.2f}%  {covered}/{total}  {path}"
+            + (f"  missing: {miss_str}" if miss_str else "")
+        )
+    return "\n".join(lines)
+
+
+def _render_coverage_html(payload: dict) -> str:
+    totals = payload.get("totals") or {}
+    files = payload.get("files") or {}
+    rows = []
+    valid_items = [(p, e) for p, e in files.items() if isinstance(e, dict)]
+    for path, entry in sorted(
+        valid_items, key=lambda kv: float(kv[1].get("percent", 100.0))
+    ):
+        rows.append(
+            "<tr><td>{p}</td><td>{pct:.2f}%</td><td>{c}/{t}</td></tr>".format(
+                p=path,
+                pct=float(entry.get("percent", 0.0)),
+                c=int(entry.get("covered_lines", 0)),
+                t=int(entry.get("total_lines", 0)),
+            )
+        )
+    return (
+        "<!doctype html><meta charset='utf-8'><title>playwright-god coverage</title>"
+        "<style>body{font-family:sans-serif;margin:2em}table{border-collapse:collapse}"
+        "td,th{border:1px solid #ccc;padding:4px 8px}</style>"
+        f"<h1>Coverage report ({payload.get('source', '?')})</h1>"
+        f"<p>Overall: {totals.get('percent', 0.0)}% — "
+        f"{totals.get('covered_lines', 0)}/{totals.get('total_lines', 0)} lines, "
+        f"{totals.get('total_files', len(files))} files.</p>"
+        "<table><tr><th>File</th><th>Percent</th><th>Covered/Total</th></tr>"
+        + "".join(rows)
+        + "</table>"
+    )
 
 
 def main() -> None:

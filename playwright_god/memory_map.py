@@ -127,9 +127,21 @@ def load_memory_map(path: str) -> dict:
     if not src.exists():
         raise FileNotFoundError(f"Memory map not found: {path!r}")
     try:
-        return json.loads(src.read_text(encoding="utf-8"))
+        data = json.loads(src.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON in memory map {path!r}: {exc}") from exc
+    # Schema 2.x compatibility: accept any "2.*" version. Older 2.0 maps
+    # have no "coverage" field; default it to None so consumers can rely on
+    # the key existing.
+    if isinstance(data, dict):
+        version = str(data.get("schema_version", "2.1"))
+        if not version.startswith("2."):
+            raise ValueError(
+                f"Unsupported memory map schema_version {version!r} in {path!r}; "
+                "expected a 2.x schema."
+            )
+        data.setdefault("coverage", None)
+    return data
 
 
 def format_memory_map_for_prompt(memory_map: dict) -> str:
@@ -213,12 +225,80 @@ def _feature_map_payload(repository_feature_map: RepositoryFeatureMap | dict) ->
     else:
         payload = dict(repository_feature_map)
     return {
-        "schema_version": payload.get("schema_version", "2.0"),
+        "schema_version": payload.get("schema_version", "2.1"),
         "features": payload.get("features", []),
         "correlations": payload.get("correlations", []),
         "test_opportunities": payload.get("test_opportunities", []),
         "source_root": payload.get("source_root", "."),
     }
+
+
+# ---------------------------------------------------------------------------
+# Coverage augmentation (schema 2.1)
+# ---------------------------------------------------------------------------
+
+
+def with_coverage(memory_map: dict, coverage_report) -> dict:
+    """Return a copy of *memory_map* annotated with a coverage summary.
+
+    The optional ``coverage`` field added at schema 2.1 looks like::
+
+        {
+            "summary": {
+                "files": <int>,
+                "covered_lines": <int>,
+                "uncovered_lines": <int>,
+                "percent": <float>,
+            },
+            "files": [
+                {"path": "...", "covered_lines": [...], "uncovered_lines": [...],
+                 "percent": <float>},
+                ...
+            ]
+        }
+
+    *coverage_report* may be a :class:`playwright_god.coverage.CoverageReport`
+    or :class:`MergedCoverageReport`, or any object exposing a ``files`` mapping
+    of file paths to objects with ``covered_lines``/``uncovered_lines`` sets.
+    The schema version is bumped to ``"2.1"`` if not already there.
+    """
+
+    out = dict(memory_map)
+    out.setdefault("schema_version", "2.1")
+    if str(out.get("schema_version", "2.1")).startswith("2.0"):
+        out["schema_version"] = "2.1"
+
+    files_payload: list[dict] = []
+    total_covered = 0
+    total_uncovered = 0
+    for path, fc in sorted(getattr(coverage_report, "files", {}).items()):
+        covered = sorted(getattr(fc, "covered_lines", []) or [])
+        uncovered = sorted(getattr(fc, "uncovered_lines", []) or [])
+        executable = len(covered) + len(uncovered)
+        percent = (len(covered) / executable * 100.0) if executable else 100.0
+        total_covered += len(covered)
+        total_uncovered += len(uncovered)
+        files_payload.append(
+            {
+                "path": path,
+                "covered_lines": covered,
+                "uncovered_lines": uncovered,
+                "percent": round(percent, 2),
+            }
+        )
+
+    total_exec = total_covered + total_uncovered
+    summary_percent = (total_covered / total_exec * 100.0) if total_exec else 100.0
+    out["coverage"] = {
+        "summary": {
+            "files": len(files_payload),
+            "covered_lines": total_covered,
+            "uncovered_lines": total_uncovered,
+            "percent": round(summary_percent, 2),
+        },
+        "files": files_payload,
+    }
+    return out
 
 
 def _format_feature_sections(memory_map: dict) -> list[str]:

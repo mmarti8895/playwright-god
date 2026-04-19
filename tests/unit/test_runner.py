@@ -300,3 +300,49 @@ def test_testcaseresult_is_frozen():
     t = TestCaseResult(title="x", status="passed", duration_ms=0)
     with pytest.raises(Exception):
         t.title = "y"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Coverage env injection (coverage-aware-planning)
+# ---------------------------------------------------------------------------
+
+
+def test_run_sets_coverage_dir_env_when_enabled(tmp_path, monkeypatch):
+    payload = {"suites": []}
+    spec, captured = _setup_run(tmp_path, monkeypatch, payload, returncode=0)
+    result = PlaywrightRunner(target_dir=tmp_path, coverage=True).run(spec)
+    env = captured[0]["kwargs"]["env"]
+    cov_dir = env.get("PLAYWRIGHT_GOD_COVERAGE_DIR")
+    assert cov_dir, "PLAYWRIGHT_GOD_COVERAGE_DIR should be set when coverage=True"
+    assert Path(cov_dir).is_dir()
+    assert result.coverage_raw == ()
+
+
+def test_run_loads_coverage_files_into_runresult(tmp_path, monkeypatch):
+    payload = {"suites": []}
+    spec, captured = _setup_run(tmp_path, monkeypatch, payload, returncode=0)
+
+    # Wrap fake subprocess to drop a *.coverage.json into the cov dir.
+    original_run = runner_mod.subprocess.run
+
+    def write_then_run(cmd, **kw):
+        env = kw.get("env") or {}
+        cov_dir = env.get("PLAYWRIGHT_GOD_COVERAGE_DIR")
+        if cov_dir:
+            Path(cov_dir).mkdir(parents=True, exist_ok=True)
+            (Path(cov_dir) / "t1.coverage.json").write_text(
+                json.dumps([{"url": "x.js", "source": "a", "functions": []}]),
+                encoding="utf-8",
+            )
+            (Path(cov_dir) / "t2.coverage.json").write_text(
+                json.dumps({"url": "y.js", "source": "b", "functions": []}),
+                encoding="utf-8",
+            )
+            (Path(cov_dir) / "broken.coverage.json").write_text("not json", encoding="utf-8")
+        return original_run(cmd, **kw)
+
+    monkeypatch.setattr(runner_mod.subprocess, "run", write_then_run)
+    result = PlaywrightRunner(target_dir=tmp_path, coverage=True).run(spec)
+    assert len(result.coverage_raw) == 2
+    urls = {e.get("url") for e in result.coverage_raw}
+    assert urls == {"x.js", "y.js"}

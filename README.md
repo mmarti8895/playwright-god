@@ -184,6 +184,55 @@ variables. Secret values are **never** logged or copied into any
 `RunResult` field; only the (optional) `stdout`/`stderr` from the Playwright
 process are retained verbatim.
 
+## Coverage-driven workflow
+
+`playwright-god` can capture and consume coverage data to bias planning and
+generation toward gaps in the existing test suite.
+
+Two coverage sources are supported:
+
+- **Frontend (Chromium V8)** — the bundled `playwright_god/_assets/coverage_fixture.ts`
+  Playwright fixture wraps `page.coverage.startJSCoverage` /
+  `stopJSCoverage` and writes per-test JSON payloads into the directory
+  named by `PLAYWRIGHT_GOD_COVERAGE_DIR`. Import the fixture from your spec
+  (or your `playwright.config.ts`) and the runner will inject the env var
+  for you when invoked with `--coverage`.
+- **Backend (Python `coverage`)** — pass any shell command that boots the
+  service under `coverage run`, e.g. `--backend-coverage "coverage run -m
+  uvicorn app:app --port 8000"`. The collector erases prior data, starts
+  the process, runs the spec, terminates gracefully, and parses
+  `coverage json -o ...`.
+
+```bash
+# Run with frontend + backend coverage and write a merged report.
+playwright-god run generated_tests/login.spec.ts \
+    --coverage \
+    --backend-coverage "coverage run -m uvicorn app:app --port 8000"
+
+# Inspect the merged coverage report.
+playwright-god coverage report .pg_runs/<UTC>/coverage_merged.json
+playwright-god coverage report .pg_runs/<UTC>/coverage_merged.json --format html -o cov.html
+
+# Plan the next round of tests with gaps prioritised.
+playwright-god plan \
+    --memory-map .idx/memory_map.json \
+    --coverage-report .pg_runs/<UTC>/coverage_merged.json \
+    --prioritize percent
+
+# Inject uncovered code excerpts into a generation prompt.
+playwright-god generate "verify password reset flow" \
+    --memory-map .idx/memory_map.json \
+    --coverage-report .pg_runs/<UTC>/coverage_merged.json \
+    --coverage-cap 12 \
+    -o tests/password_reset.spec.ts
+```
+
+Install the optional Python coverage extra when using `--backend-coverage`:
+
+```bash
+pip install -e ".[coverage]"
+```
+
 ## Memory Map
 
 The saved memory map keeps the original file inventory and extends it with streamlined repository understanding:
@@ -195,11 +244,17 @@ The saved memory map keeps the original file inventory and extends it with strea
   "total_chunks": 87,
   "languages": { "python": 6, "javascript": 4, "html": 2 },
   "files": [],
-  "schema_version": "2.0",
+  "schema_version": "2.1",
   "features": [],
   "correlations": [],
   "test_opportunities": [],
-  "source_root": "/abs/path/to/repo"
+  "source_root": "/abs/path/to/repo",
+  "coverage": {
+    "summary": {"files": 12, "covered_lines": 240, "uncovered_lines": 60, "percent": 80.0},
+    "files": [
+      {"path": "src/api/users.py", "covered_lines": [1,2,4,7], "uncovered_lines": [3,5,6], "percent": 57.14}
+    ]
+  }
 }
 ```
 

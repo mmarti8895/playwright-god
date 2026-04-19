@@ -32,7 +32,7 @@ def test_feature_memory_map_includes_feature_metadata(sample_repo_path):
     memory_map = build_memory_map(chunks, repository_feature_map=feature_map)
     assert memory_map["features"]
     assert memory_map["test_opportunities"]
-    assert memory_map["schema_version"] == "2.0"
+    assert memory_map["schema_version"] == "2.1"
 
 
 def test_feature_prompt_summary_mentions_feature_areas(sample_repo_path):
@@ -60,6 +60,6 @@ def test_saved_feature_memory_map_can_be_reloaded_for_reuse(sample_repo_path, tm
     reloaded = load_memory_map(str(destination))
     prompt = format_memory_map_for_prompt(reloaded)
 
-    assert reloaded["schema_version"] == "2.0"
+    assert reloaded["schema_version"] == "2.1"
     assert reloaded["features"]
     assert "Suggested test opportunities" in prompt

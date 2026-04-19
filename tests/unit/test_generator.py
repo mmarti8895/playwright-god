@@ -521,3 +521,117 @@ class TestOllamaClient:
         roles = [m["role"] for m in payload["messages"]]
         assert roles == ["system", "user"]
         assert payload["messages"][1]["content"] == "user message"
+
+
+# ---------------------------------------------------------------------------
+# Coverage-aware prompt injection (coverage-aware-planning)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingClient:
+    def __init__(self):
+        self.last_prompt = None
+
+    def complete(self, prompt, system_prompt=None):
+        self.last_prompt = prompt
+        return "// generated"
+
+
+class TestUncoveredExcerptInjection:
+    def test_block_appended_when_excerpts_provided(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        excerpts = [("src/a.ts", 1, 3, "alpha\nbeta\ngamma")]
+        gen.generate("login flow", uncovered_excerpts=excerpts)
+        assert "Uncovered code (gaps)" in client.last_prompt
+        assert "src/a.ts" in client.last_prompt
+        assert "alpha" in client.last_prompt
+
+    def test_cap_truncates_excerpts(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        excerpts = [(f"f{i}.ts", 1, 1, f"body{i}") for i in range(20)]
+        gen.generate("scenario", uncovered_excerpts=excerpts, uncovered_cap=5)
+        prompt = client.last_prompt
+        # Only first 5 should appear; the rest are noted as omitted.
+        for i in range(5):
+            assert f"f{i}.ts" in prompt
+        for i in range(5, 20):
+            assert f"f{i}.ts" not in prompt
+        assert "+15 more" in prompt
+
+    def test_no_block_when_excerpts_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        gen.generate("x", uncovered_excerpts=[])
+        assert "Uncovered code (gaps)" not in client.last_prompt
+
+
+class TestCoverageDeltaInPlan:
+    def test_plan_includes_coverage_delta_section(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        coverage = {
+            "summary": {"files": 2, "covered_lines": 5, "uncovered_lines": 5,
+                        "percent": 50.0},
+            "files": [
+                {"path": "a.ts", "covered_lines": [1], "uncovered_lines": [2, 3, 4],
+                 "percent": 25.0},
+                {"path": "b.py", "covered_lines": [1, 2], "uncovered_lines": [3, 4],
+                 "percent": 50.0},
+            ],
+        }
+        gen.plan("memory map", coverage=coverage)
+        assert "## Coverage Delta" in client.last_prompt
+        # Default prioritisation = absolute (most uncovered first) so a.ts wins.
+        idx_a = client.last_prompt.find("`a.ts`")
+        idx_b = client.last_prompt.find("`b.py`")
+        assert 0 < idx_a < idx_b
+
+    def test_plan_prioritise_percent_orders_lowest_first(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+
+        client = _RecordingClient()
+        gen = PlaywrightTestGenerator(llm_client=client)
+        coverage = {
+            "summary": {},
+            "files": [
+                {"path": "a.ts", "uncovered_lines": [1, 2, 3, 4, 5], "percent": 90.0},
+                {"path": "b.py", "uncovered_lines": [1], "percent": 10.0},
+            ],
+        }
+        gen.plan("mm", coverage=coverage, prioritize="percent")
+        idx_a = client.last_prompt.find("`a.ts`")
+        idx_b = client.last_prompt.find("`b.py`")
+        assert 0 < idx_b < idx_a
+
+
+class TestCoverageDeltaEdgeCases:
+    def test_empty_files_returns_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        assert PlaywrightTestGenerator._format_coverage_delta({"files": []}) == ""
+
+    def test_all_files_fully_covered_returns_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        out = PlaywrightTestGenerator._format_coverage_delta(
+            {"files": [{"path": "a", "uncovered_lines": [], "percent": 100.0}]}
+        )
+        assert out == ""
+
+    def test_format_uncovered_block_empty(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        assert PlaywrightTestGenerator._format_uncovered_block([]) == ""
+
+    def test_format_uncovered_block_cap_zero(self):
+        from playwright_god.generator import PlaywrightTestGenerator
+        assert PlaywrightTestGenerator._format_uncovered_block(
+            [("a", 1, 1, "x")], cap=0
+        ) == ""

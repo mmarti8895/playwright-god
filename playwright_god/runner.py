@@ -65,6 +65,7 @@ class RunResult:
     stderr: str
     report_dir: Path | None = None
     spec_path: Path | None = None
+    coverage_raw: tuple[dict, ...] = ()
 
 
 def _which(cmd: str) -> str | None:
@@ -189,6 +190,14 @@ class PlaywrightRunner:
         Playwright reporter to request. ``"json"`` is required for parsing.
     extra_args:
         Additional CLI arguments forwarded to ``npx playwright test``.
+    coverage:
+        When True, set ``PLAYWRIGHT_GOD_COVERAGE_DIR`` so the bundled JS
+        coverage fixture (see ``playwright_god/_assets/coverage_fixture.ts``)
+        writes per-test V8 payloads we can pick up. The runner does not
+        inject the fixture import itself; the spec or ``playwright.config.ts``
+        is responsible for using the fixture. After the run, all
+        ``*.coverage.json`` files under that directory are loaded into
+        ``RunResult.coverage_raw``.
     """
 
     def __init__(
@@ -198,11 +207,13 @@ class PlaywrightRunner:
         artifact_dir: Path | str | None = None,
         reporter: str = "json",
         extra_args: Sequence[str] = (),
+        coverage: bool = False,
     ) -> None:
         self._target_dir = Path(target_dir).resolve() if target_dir else None
         self._artifact_dir = Path(artifact_dir) if artifact_dir else None
         self._reporter = reporter
         self._extra_args = tuple(extra_args)
+        self._coverage = bool(coverage)
 
     # ------------------------------------------------------------------
     # Environment / prerequisite checks
@@ -287,6 +298,13 @@ class PlaywrightRunner:
         # And the HTML/trace artifacts directory.
         env["PLAYWRIGHT_HTML_REPORT"] = str(run_dir / "html")
 
+        # Coverage capture: tell the bundled JS fixture where to drop V8 payloads.
+        coverage_dir: Path | None = None
+        if self._coverage:
+            coverage_dir = run_dir / "coverage"
+            coverage_dir.mkdir(parents=True, exist_ok=True)
+            env["PLAYWRIGHT_GOD_COVERAGE_DIR"] = str(coverage_dir)
+
         completed = subprocess.run(
             cmd,
             cwd=str(target_dir),
@@ -295,6 +313,22 @@ class PlaywrightRunner:
             text=True,
             check=False,
         )
+
+        # Collect any V8 coverage payloads dropped by the JS fixture.
+        coverage_raw_payload: tuple[dict, ...] = ()
+        if coverage_dir is not None and coverage_dir.is_dir():
+            entries: list[dict] = []
+            for cov_file in sorted(coverage_dir.glob("*.coverage.json")):
+                try:
+                    with cov_file.open("r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if isinstance(data, list):
+                    entries.extend(d for d in data if isinstance(d, dict))
+                elif isinstance(data, dict):
+                    entries.append(data)
+            coverage_raw_payload = tuple(entries)
 
         # Parse reporter output. Prefer the file (more reliable than stdout
         # which can be interleaved with progress lines).
@@ -321,6 +355,7 @@ class PlaywrightRunner:
                 stderr=completed.stderr,
                 report_dir=run_dir,
                 spec_path=spec_path,
+                coverage_raw=coverage_raw_payload,
             )
 
         tests, duration_ms = _parse_report(payload)
@@ -338,6 +373,7 @@ class PlaywrightRunner:
             stderr=completed.stderr,
             report_dir=run_dir,
             spec_path=spec_path,
+            coverage_raw=coverage_raw_payload,
         )
 
 

@@ -510,7 +510,7 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "Memory map loaded" in result.stderr
+        assert "Memory map loaded" in result.output
         assert 'import { test, expect } from "@playwright/test";' in result.output
         # must NOT produce a Markdown plan
         assert "# Playwright Test Plan" not in result.output
@@ -539,7 +539,7 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "Warning" in result.stderr
+        assert "Warning" in result.output
 
     def test_generate_reads_auth_config_and_env_file(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
@@ -580,7 +580,7 @@ class TestGenerateCommand:
         called_prompt = mock_client.complete.call_args[0][0]
         assert "issuer" in called_prompt
         assert 'process.env.TEST_USERNAME ?? ""' in called_prompt
-        assert "Auth type: saml" in result.stderr
+        assert "Auth type: saml" in result.output
 
     def test_generate_warns_when_auth_config_cannot_be_read(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
@@ -608,7 +608,7 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "Warning: could not read --auth-config" in result.stderr
+        assert "Warning: could not read --auth-config" in result.output
 
     def test_generate_warns_when_env_file_cannot_be_read(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
@@ -636,7 +636,7 @@ class TestGenerateCommand:
             )
 
         assert result.exit_code == 0
-        assert "Warning: could not read --env-file" in result.stderr
+        assert "Warning: could not read --env-file" in result.output
 
 
 class TestIndexMemoryMapFlag:
@@ -1202,3 +1202,485 @@ class TestGenerateRunFlag:
             )
         assert result.exit_code == 2
         assert "@playwright/test missing" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Coverage-aware CLI surface (coverage-aware-planning)
+# ---------------------------------------------------------------------------
+
+
+class TestCoverageReportSubcommand:
+    def _sample_payload(self) -> dict:
+        return {
+            "source": "merged",
+            "generated_at": "2026-04-19T00:00:00+00:00",
+            "merge_meta": ["frontend", "backend"],
+            "totals": {"total_files": 2, "total_lines": 10,
+                       "covered_lines": 6, "percent": 60.0},
+            "files": {
+                "src/a.ts": {"total_lines": 4, "covered_lines": 1, "percent": 25.0,
+                             "missing_line_ranges": [[2, 4]]},
+                "src/b.py": {"total_lines": 6, "covered_lines": 5, "percent": 83.33,
+                             "missing_line_ranges": [[6, 6]]},
+            },
+        }
+
+    def test_text_format(self, tmp_path):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import json as _json
+
+        path = tmp_path / "cov.json"
+        path.write_text(_json.dumps(self._sample_payload()), encoding="utf-8")
+        result = CliRunner().invoke(
+            cli, ["coverage", "report", str(path)]
+        )
+        assert result.exit_code == 0, result.output
+        assert "Coverage report" in result.output
+        assert "src/a.ts" in result.output
+        # Lowest-coverage first
+        assert result.output.find("src/a.ts") < result.output.find("src/b.py")
+
+    def test_json_format(self, tmp_path):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import json as _json
+
+        path = tmp_path / "cov.json"
+        path.write_text(_json.dumps(self._sample_payload()), encoding="utf-8")
+        result = CliRunner().invoke(
+            cli, ["coverage", "report", str(path), "--format", "json"]
+        )
+        assert result.exit_code == 0
+        parsed = _json.loads(result.output)
+        assert parsed["source"] == "merged"
+
+    def test_html_format_to_file(self, tmp_path):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import json as _json
+
+        path = tmp_path / "cov.json"
+        out = tmp_path / "cov.html"
+        path.write_text(_json.dumps(self._sample_payload()), encoding="utf-8")
+        result = CliRunner().invoke(
+            cli, ["coverage", "report", str(path), "--format", "html", "-o", str(out)]
+        )
+        assert result.exit_code == 0
+        body = out.read_text(encoding="utf-8")
+        assert "<table" in body
+        assert "src/a.ts" in body
+
+    def test_invalid_file_exits_nonzero(self, tmp_path):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json", encoding="utf-8")
+        result = CliRunner().invoke(
+            cli, ["coverage", "report", str(bad)]
+        )
+        assert result.exit_code == 1
+
+
+class TestPlanPrioritizeFlag:
+    def test_plan_accepts_prioritize_and_coverage_report(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import json as _json
+
+        # Dummy memory map
+        mm = tmp_path / "mm.json"
+        mm.write_text(_json.dumps({
+            "schema_version": "2.1", "total_files": 0, "total_chunks": 0,
+            "languages": {}, "files": [],
+        }), encoding="utf-8")
+        # Dummy coverage report
+        cov = tmp_path / "cov.json"
+        cov.write_text(_json.dumps({
+            "source": "merged", "files": {
+                "x.py": {"total_lines": 4, "covered_lines": 1, "percent": 25.0,
+                         "missing_line_ranges": [[2, 4]]},
+            }
+        }), encoding="utf-8")
+
+        # Force template provider so no network is needed.
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "template")
+        result = CliRunner().invoke(
+            cli,
+            [
+                "plan",
+                "--memory-map", str(mm),
+                "--coverage-report", str(cov),
+                "--prioritize", "percent",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+
+# ---------------------------------------------------------------------------
+# CLI helpers (coverage-aware-planning internals)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildUncoveredExcerpts:
+    def test_reads_files_and_caps(self, tmp_path):
+        from playwright_god.cli import _build_uncovered_excerpts
+        from playwright_god.coverage import FileCoverage, CoverageReport
+
+        src = tmp_path / "a.py"
+        src.write_text("\n".join(f"line {i}" for i in range(1, 11)), encoding="utf-8")
+        fc = FileCoverage(
+            path="a.py", total_lines=10, covered_lines=2,
+            missing_line_ranges=((3, 5), (7, 8)),
+        )
+        rep = CoverageReport(source="backend", files={"a.py": fc}, generated_at="t")
+        out = _build_uncovered_excerpts(rep, cap=10, workdir=tmp_path)
+        assert len(out) == 2
+        assert out[0][0] == "a.py"
+        assert "line 3" in out[0][3]
+
+    def test_skips_missing_files(self, tmp_path):
+        from playwright_god.cli import _build_uncovered_excerpts
+        from playwright_god.coverage import FileCoverage, CoverageReport
+
+        fc = FileCoverage(
+            path="missing.py", total_lines=4, covered_lines=0,
+            missing_line_ranges=((1, 4),),
+        )
+        rep = CoverageReport(source="backend", files={"missing.py": fc}, generated_at="t")
+        assert _build_uncovered_excerpts(rep, workdir=tmp_path) == []
+
+    def test_cap_zero_returns_nothing(self, tmp_path):
+        from playwright_god.cli import _build_uncovered_excerpts
+        from playwright_god.coverage import FileCoverage, CoverageReport
+
+        src = tmp_path / "a.py"
+        src.write_text("a\nb\nc\n", encoding="utf-8")
+        fc = FileCoverage(path="a.py", total_lines=3, covered_lines=0,
+                          missing_line_ranges=((1, 3),))
+        rep = CoverageReport(source="backend", files={"a.py": fc}, generated_at="t")
+        out = _build_uncovered_excerpts(rep, cap=0, workdir=tmp_path)
+        assert out == []
+
+
+class TestRenderCoverage:
+    def _payload(self) -> dict:
+        return {
+            "source": "backend",
+            "generated_at": "t",
+            "totals": {"total_files": 1, "total_lines": 10, "covered_lines": 4, "percent": 40.0},
+            "files": {
+                "a.py": {"total_lines": 10, "covered_lines": 4, "percent": 40.0,
+                         "missing_line_ranges": [[1, 1], [3, 4], [6, 6], [8, 8],
+                                                  [10, 10], [12, 12], [14, 14], [16, 16]]},
+                "broken": "ignored",
+            },
+        }
+
+    def test_text_truncates_missing_ranges(self):
+        from playwright_god.cli import _render_coverage_text
+        out = _render_coverage_text(self._payload())
+        assert "more" in out  # +2 more truncation marker
+        assert "a.py" in out
+
+    def test_html_skips_invalid(self):
+        from playwright_god.cli import _render_coverage_html
+        out = _render_coverage_html(self._payload())
+        assert "<table" in out
+        assert "a.py" in out
+
+
+class TestGenerateWithCoverageReport:
+    def test_loads_excerpts_and_runs(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import json as _json
+
+        # Source file referenced by the coverage report.
+        src = tmp_path / "src" / "a.py"
+        src.parent.mkdir(parents=True)
+        src.write_text("line1\nline2\nline3\n", encoding="utf-8")
+
+        cov_report = tmp_path / "cov.json"
+        cov_report.write_text(_json.dumps({
+            "source": "backend",
+            "generated_at": "t",
+            "files": {
+                "src/a.py": {"total_lines": 3, "covered_lines": 1,
+                             "missing_line_ranges": [[2, 3]]},
+            },
+        }), encoding="utf-8")
+
+        out = tmp_path / "out.spec.ts"
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "template")
+        result = CliRunner().invoke(
+            cli,
+            [
+                "generate", "scenario X",
+                "--persist-dir", str(tmp_path / ".idx"),
+                "--coverage-report", str(cov_report),
+                "--coverage-cap", "5",
+                "-o", str(out),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.is_file()
+
+    def test_invalid_coverage_report_warns(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+
+        bad = tmp_path / "cov.json"
+        bad.write_text("not json", encoding="utf-8")
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "template")
+        result = CliRunner().invoke(
+            cli,
+            [
+                "generate", "x",
+                "--persist-dir", str(tmp_path / ".idx"),
+                "--coverage-report", str(bad),
+                "-o", str(tmp_path / "out.ts"),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "could not load --coverage-report" in result.output
+
+
+class TestRunCommandCoverageFlag:
+    def test_run_with_coverage_flag(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import playwright_god.runner as runner_mod
+
+        # Stub a Playwright project + spec.
+        target = tmp_path / "app"
+        target.mkdir()
+        (target / "package.json").write_text(
+            '{"devDependencies": {"@playwright/test": "1"}}', encoding="utf-8"
+        )
+        spec = target / "x.spec.ts"
+        spec.write_text("// noop", encoding="utf-8")
+
+        monkeypatch.setattr(runner_mod, "_which", lambda c: "/usr/bin/npx")
+
+        def fake_run(cmd, **kw):
+            env = kw.get("env") or {}
+            report_path = env.get("PLAYWRIGHT_JSON_OUTPUT_NAME")
+            if report_path:
+                from pathlib import Path as _P
+                _P(report_path).parent.mkdir(parents=True, exist_ok=True)
+                _P(report_path).write_text("{}", encoding="utf-8")
+            import subprocess as _sp
+            return _sp.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr(runner_mod.subprocess, "run", fake_run)
+
+        result = CliRunner().invoke(
+            cli, ["run", str(spec), "--target-dir", str(target), "--coverage"]
+        )
+        assert result.exit_code == 0, result.output
+
+    def test_run_setup_error_exits_2(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import playwright_god.runner as runner_mod
+
+        target = tmp_path / "app"
+        target.mkdir()
+        spec = target / "x.spec.ts"
+        spec.write_text("// noop", encoding="utf-8")
+        monkeypatch.setattr(runner_mod, "_which", lambda c: None)
+        result = CliRunner().invoke(
+            cli, ["run", str(spec), "--target-dir", str(target)]
+        )
+        assert result.exit_code == 2
+
+
+class TestGenerateRunFlag:
+    def _stub_runner(self, monkeypatch, target):
+        import playwright_god.runner as runner_mod
+
+        monkeypatch.setattr(runner_mod, "_which", lambda c: "/usr/bin/npx")
+
+        def fake_run(cmd, **kw):
+            env = kw.get("env") or {}
+            rp = env.get("PLAYWRIGHT_JSON_OUTPUT_NAME")
+            if rp:
+                from pathlib import Path as _P
+                _P(rp).parent.mkdir(parents=True, exist_ok=True)
+                _P(rp).write_text("{}", encoding="utf-8")
+            import subprocess as _sp
+            return _sp.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr(runner_mod.subprocess, "run", fake_run)
+
+    def _make_target(self, tmp_path):
+        target = tmp_path / "app"
+        target.mkdir()
+        (target / "package.json").write_text(
+            '{"devDependencies":{"@playwright/test":"1"}}', encoding="utf-8"
+        )
+        return target
+
+    def test_generate_run_writes_temp_spec(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+
+        target = self._make_target(tmp_path)
+        self._stub_runner(monkeypatch, target)
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "template")
+        result = CliRunner().invoke(
+            cli,
+            [
+                "generate", "scenario",
+                "--persist-dir", str(tmp_path / ".idx"),
+                "--run", "--target-dir", str(target),
+            ],
+        )
+        # Exit 0 (passed) since fake_run returns success and tests are empty.
+        assert result.exit_code == 0, result.output
+        assert "Wrote temp spec to" in result.output
+
+    def test_generate_run_with_backend_coverage(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import playwright_god.coverage as cov_mod
+
+        target = self._make_target(tmp_path)
+        self._stub_runner(monkeypatch, target)
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "template")
+
+        # Stub the backend collector to avoid any subprocess.
+        class FakeCollector:
+            def __init__(self, **kw):
+                pass
+
+            def collect(self, run_callable, **kw):
+                run_callable()
+                return cov_mod.merge(
+                    cov_mod.CoverageReport(source="frontend", files={}, generated_at="t"),
+                    cov_mod.CoverageReport(source="backend", files={}, generated_at="t"),
+                )
+
+        monkeypatch.setattr("playwright_god.cli.CoverageCollector", FakeCollector, raising=False)
+        # Direct import path inside generate uses `from .coverage import CoverageCollector`.
+        monkeypatch.setattr(cov_mod, "CoverageCollector", FakeCollector)
+
+        out = tmp_path / "out.spec.ts"
+        result = CliRunner().invoke(
+            cli,
+            [
+                "generate", "scenario",
+                "--persist-dir", str(tmp_path / ".idx"),
+                "--run", "--target-dir", str(target),
+                "-o", str(out),
+                "--backend-coverage", "echo backend",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Coverage report:" in result.output
+
+    def test_generate_run_setup_error(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import playwright_god.runner as runner_mod
+
+        target = self._make_target(tmp_path)
+        monkeypatch.setattr(runner_mod, "_which", lambda c: None)
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "template")
+        out = tmp_path / "out.spec.ts"
+        result = CliRunner().invoke(
+            cli,
+            [
+                "generate", "scenario",
+                "--persist-dir", str(tmp_path / ".idx"),
+                "--run", "--target-dir", str(target), "-o", str(out),
+            ],
+        )
+        assert result.exit_code == 2
+
+
+class TestPlanCoverageReportWarn:
+    def test_unparseable_coverage_report_warns(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+
+        bad = tmp_path / "cov.json"
+        bad.write_text("not json", encoding="utf-8")
+        mm = tmp_path / "mm.json"
+        mm.write_text(
+            '{"schema_version":"2.1","total_files":0,"total_chunks":0,'
+            '"languages":{},"files":[]}', encoding="utf-8"
+        )
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "template")
+        result = CliRunner().invoke(
+            cli, ["plan", "--memory-map", str(mm), "--coverage-report", str(bad)]
+        )
+        assert result.exit_code == 0
+        assert "could not load --coverage-report" in result.output
+
+
+class TestRunBackendCoverage:
+    def test_run_with_backend_coverage(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+        import playwright_god.runner as runner_mod
+        import playwright_god.coverage as cov_mod
+
+        target = tmp_path / "app"
+        target.mkdir()
+        (target / "package.json").write_text(
+            '{"devDependencies":{"@playwright/test":"1"}}', encoding="utf-8"
+        )
+        spec = target / "x.spec.ts"
+        spec.write_text("// noop", encoding="utf-8")
+
+        monkeypatch.setattr(runner_mod, "_which", lambda c: "/usr/bin/npx")
+
+        def fake_run(cmd, **kw):
+            env = kw.get("env") or {}
+            rp = env.get("PLAYWRIGHT_JSON_OUTPUT_NAME")
+            if rp:
+                from pathlib import Path as _P
+                _P(rp).parent.mkdir(parents=True, exist_ok=True)
+                _P(rp).write_text("{}", encoding="utf-8")
+            import subprocess as _sp
+            return _sp.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr(runner_mod.subprocess, "run", fake_run)
+
+        class FakeCollector:
+            def __init__(self, **kw):
+                pass
+
+            def collect(self, run_callable, **kw):
+                run_callable()
+                return cov_mod.merge(
+                    cov_mod.CoverageReport(source="frontend", files={}, generated_at="t"),
+                    cov_mod.CoverageReport(source="backend", files={}, generated_at="t"),
+                )
+
+        monkeypatch.setattr(cov_mod, "CoverageCollector", FakeCollector)
+
+        result = CliRunner().invoke(
+            cli,
+            [
+                "run", str(spec),
+                "--target-dir", str(target),
+                "--backend-coverage", "echo backend",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Coverage report:" in result.output
+
+
+class TestCoveragePayloadForPlan:
+    def test_skips_invalid_entries(self):
+        from playwright_god.cli import _coverage_payload_for_plan
+        out = _coverage_payload_for_plan({"files": {"a": "broken",
+                                                     "b": {"total_lines": 0, "covered_lines": 0}}})
+        assert out["summary"]["files"] == 1
+        # Default percent path: total=0 → 100.0
+        assert out["files"][0]["percent"] == 100.0

@@ -129,7 +129,7 @@ class TestBuildMemoryMap:
             generated_at="2026-04-11T00:00:00+00:00",
         )
         result = build_memory_map([chunk], repository_feature_map=feature_map)
-        assert result["schema_version"] == "2.0"
+        assert result["schema_version"] == "2.1"
         assert "features" in result
         assert "test_opportunities" in result
 
@@ -345,3 +345,71 @@ class TestFormatMemoryMapForPrompt:
             },
         )
         assert result["schema_version"] == "2.1"
+
+
+# ---------------------------------------------------------------------------
+# Schema 2.1: coverage augmentation
+# ---------------------------------------------------------------------------
+
+
+class _StubFC:
+    def __init__(self, covered, uncovered):
+        self.covered_lines = covered
+        self.uncovered_lines = uncovered
+
+
+class _StubReport:
+    def __init__(self, files):
+        self.files = files
+
+
+class TestSchema21Coverage:
+    def test_with_coverage_bumps_to_21_and_adds_field(self):
+        from playwright_god.memory_map import with_coverage
+
+        base = {"schema_version": "2.0", "files": []}
+        report = _StubReport(
+            {"src/a.ts": _StubFC([1, 2, 3], [4, 5]), "src/b.py": _StubFC([1], [])}
+        )
+        out = with_coverage(base, report)
+        assert out["schema_version"] == "2.1"
+        assert out["coverage"]["summary"]["files"] == 2
+        assert out["coverage"]["summary"]["covered_lines"] == 4
+        assert out["coverage"]["summary"]["uncovered_lines"] == 2
+        a_entry = next(f for f in out["coverage"]["files"] if f["path"] == "src/a.ts")
+        assert a_entry["covered_lines"] == [1, 2, 3]
+        assert a_entry["uncovered_lines"] == [4, 5]
+        assert base["schema_version"] == "2.0"
+
+    def test_load_memory_map_accepts_2x_and_defaults_coverage(self, tmp_path):
+        from playwright_god.memory_map import load_memory_map
+
+        path = tmp_path / "m.json"
+        path.write_text(
+            json.dumps({"schema_version": "2.1", "files": [], "total_files": 0,
+                        "total_chunks": 0, "languages": {}}),
+            encoding="utf-8",
+        )
+        loaded = load_memory_map(str(path))
+        assert loaded["schema_version"] == "2.1"
+        assert loaded["coverage"] is None
+
+    def test_load_memory_map_rejects_non_2x(self, tmp_path):
+        from playwright_god.memory_map import load_memory_map
+
+        path = tmp_path / "m.json"
+        path.write_text(json.dumps({"schema_version": "3.0"}), encoding="utf-8")
+        with pytest.raises(ValueError, match="2.x"):
+            load_memory_map(str(path))
+
+    def test_with_coverage_roundtrip_via_disk(self, tmp_path):
+        from playwright_god.memory_map import with_coverage
+
+        base = build_memory_map([])
+        report = _StubReport({"src/a.ts": _StubFC([1, 2], [3])})
+        annotated = with_coverage(base, report)
+        dest = tmp_path / "m.json"
+        save_memory_map(annotated, str(dest))
+        loaded = load_memory_map(str(dest))
+        assert loaded["coverage"]["summary"]["files"] == 1
+        assert loaded["schema_version"] == "2.1"

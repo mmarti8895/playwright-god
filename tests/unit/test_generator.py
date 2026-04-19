@@ -748,3 +748,173 @@ def test_generate_coverage_delta_with_dataclass_object() -> None:
     )
     assert "src/a.py" in client.prompts[0]
     assert "src/b.py" in client.prompts[0]
+
+
+# ---------------------------------------------------------------------------
+# Flow-graph integration (flow-graph-extraction)
+# ---------------------------------------------------------------------------
+
+
+def _flow_graph_with_routes_and_actions():
+    from playwright_god.flow_graph import (
+        Action,
+        Evidence,
+        FlowGraph,
+        Route,
+    )
+
+    return FlowGraph.from_iterables(
+        nodes=[
+            Route(
+                method="GET",
+                path="/login",
+                handler="login_handler",
+                evidence=(Evidence("api/auth.py", (1, 5)),),
+            ),
+            Route(
+                method="POST",
+                path="/items",
+                handler="create_item",
+                evidence=(Evidence("api/items.py", (10, 20)),),
+            ),
+            Action(
+                file="src/Login.tsx",
+                line=12,
+                role="login-submit",
+                evidence=(Evidence("src/Login.tsx", (12, 12)),),
+            ),
+        ]
+    )
+
+
+def test_plan_includes_flow_graph_block():
+    from playwright_god.generator import (
+        PlaywrightTestGenerator,
+        TemplateLLMClient,
+    )
+
+    captured = {}
+
+    class _Capture(TemplateLLMClient):
+        def complete(self, prompt, system_prompt=None):
+            captured["prompt"] = prompt
+            return "PLAN"
+
+    gen = PlaywrightTestGenerator(llm_client=_Capture())
+    out = gen.plan(
+        "memory map text",
+        flow_graph=_flow_graph_with_routes_and_actions(),
+    )
+    assert out == "PLAN"
+    assert "## Flow Graph" in captured["prompt"]
+    assert "route:GET:/login" in captured["prompt"]
+    assert "action:src/Login.tsx:12#login-submit" in captured["prompt"]
+
+
+def test_plan_with_prioritize_routes_orders_files():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    coverage = {
+        "files": [
+            {"path": "api/items.py", "percent": 50.0,
+             "uncovered_lines": [1, 2], "covered_lines": [3]},
+            {"path": "api/auth.py", "percent": 80.0,
+             "uncovered_lines": [9], "covered_lines": [1, 2, 3, 4]},
+            {"path": "lib/util.py", "percent": 10.0,
+             "uncovered_lines": [1, 2, 3, 4, 5], "covered_lines": [6]},
+        ],
+        "routes": {"uncovered": ["route:POST:/items", "route:GET:/login"]},
+    }
+    block = PlaywrightTestGenerator._format_coverage_delta(
+        coverage,
+        prioritize="routes",
+        flow_graph=_flow_graph_with_routes_and_actions(),
+    )
+    # api/items.py and api/auth.py both touched by uncovered routes;
+    # lib/util.py has zero route weight even though its percent is lowest.
+    first_line = next(line for line in block.splitlines() if line.startswith("- "))
+    assert "api/items.py" in first_line or "api/auth.py" in first_line
+
+
+def test_plan_prioritize_routes_without_graph_falls_back():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    coverage = {
+        "files": [
+            {"path": "a.py", "percent": 50.0,
+             "uncovered_lines": [1], "covered_lines": [2]},
+        ],
+    }
+    block = PlaywrightTestGenerator._format_coverage_delta(
+        coverage, prioritize="routes", flow_graph=None
+    )
+    assert "a.py" in block
+
+
+def test_format_flow_graph_for_plan_handles_no_uncovered_routes():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    block = PlaywrightTestGenerator._format_flow_graph_for_plan(
+        _flow_graph_with_routes_and_actions(),
+        coverage={"routes": {"uncovered": []}},
+    )
+    assert "all routes covered" in block
+
+
+def test_format_flow_graph_for_plan_returns_empty_for_none():
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    assert PlaywrightTestGenerator._format_flow_graph_for_plan(None) == ""
+
+
+def test_format_flow_graph_for_plan_returns_empty_for_empty_graph():
+    from playwright_god.flow_graph import FlowGraph
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    assert PlaywrightTestGenerator._format_flow_graph_for_plan(FlowGraph()) == ""
+
+
+def test_generate_includes_relevant_routes_block():
+    from playwright_god.generator import (
+        PlaywrightTestGenerator,
+        TemplateLLMClient,
+    )
+
+    captured = {}
+
+    class _Capture(TemplateLLMClient):
+        def complete(self, prompt, system_prompt=None):
+            captured["prompt"] = prompt
+            return "TEST"
+
+    gen = PlaywrightTestGenerator(llm_client=_Capture())
+    out = gen.generate(
+        "Test the login flow and items endpoint",
+        flow_graph=_flow_graph_with_routes_and_actions(),
+    )
+    assert out == "TEST"
+    assert "Relevant routes & actions" in captured["prompt"]
+    # Both terms appear in the description; both routes should be included.
+    assert "route:GET:/login" in captured["prompt"]
+    assert "route:POST:/items" in captured["prompt"]
+
+
+def test_format_flow_graph_subgraph_caps_results():
+    from playwright_god.flow_graph import Action, Evidence, FlowGraph, Route
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    routes = [Route(method="GET", path=f"/p{i}",
+                    evidence=(Evidence("a.py", (i, i)),)) for i in range(20)]
+    actions = [Action(file="a.tsx", line=i, role=f"r{i}") for i in range(20)]
+    g = FlowGraph.from_iterables(routes + actions)
+    block = PlaywrightTestGenerator._format_flow_graph_subgraph(g, "anything", cap=3)
+    # 3 routes + 3 actions max
+    assert block.count("- route:") <= 3
+    assert block.count("- action:") <= 3
+
+
+def test_format_flow_graph_subgraph_empty_graph_returns_empty():
+    from playwright_god.flow_graph import FlowGraph
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    assert PlaywrightTestGenerator._format_flow_graph_subgraph(FlowGraph(), "x") == ""

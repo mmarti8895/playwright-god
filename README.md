@@ -292,7 +292,7 @@ The saved memory map keeps the original file inventory and extends it with strea
   "total_chunks": 87,
   "languages": { "python": 6, "javascript": 4, "html": 2 },
   "files": [],
-  "schema_version": "2.1",
+  "schema_version": "2.2",
   "features": [],
   "correlations": [],
   "test_opportunities": [],
@@ -302,11 +302,85 @@ The saved memory map keeps the original file inventory and extends it with strea
     "files": [
       {"path": "src/api/users.py", "covered_lines": [1,2,4,7], "uncovered_lines": [3,5,6], "percent": 57.14}
     ]
+  },
+  "flow_graph": {
+    "nodes": [
+      {"kind": "route", "method": "GET", "path": "/users/{id}", "handler": "get_user", "evidence": [{"file": "src/api/users.py", "line_range": [12, 20]}]},
+      {"kind": "view", "file": "src/pages/Profile.tsx", "symbol": "default", "evidence": [{"file": "src/pages/Profile.tsx", "line_range": [1, 50]}]},
+      {"kind": "action", "file": "src/pages/Profile.tsx", "line": 35, "role": "save-profile", "evidence": []}
+    ],
+    "edges": [
+      {"source_id": "view:src/pages/Profile.tsx#default", "target_id": "route:GET:/users/{id}", "kind": "calls"}
+    ]
   }
 }
 ```
 
 This format is meant to stay compact: it keeps file/chunk inventory plus evidence references, not full chunk text.
+
+## Flow Graph
+
+The flow graph is an optional companion to the memory map that captures the
+application's **routes**, **views**, and **actions** plus the edges between
+them. It enables route-level coverage reporting and drives the
+`--prioritize routes` planning mode.
+
+### Node IDs
+
+Content-addressed IDs guarantee stability across runs:
+
+| Kind   | ID shape                              | Example                             |
+|--------|---------------------------------------|-------------------------------------|
+| Route  | `route:<METHOD>:<path>`               | `route:GET:/users/{id}`            |
+| View   | `view:<file>#<symbol>`                | `view:src/pages/Login.tsx#default` |
+| Action | `action:<file>:<line>#<role>`         | `action:src/Login.tsx:35#submit`   |
+
+### Extract command
+
+```bash
+# Extract from current directory, write to stdout
+playwright-god graph extract
+
+# Write to a specific file
+playwright-god graph extract ./src -o flow_graph.json
+
+# CI check mode: exit 1 if extracted graph differs from baseline
+playwright-god graph extract --check -o flow_graph.json
+```
+
+### Supported frameworks
+
+| Language | Frameworks / Patterns                                                    |
+|----------|--------------------------------------------------------------------------|
+| Python   | FastAPI `@app.get`, Flask `@app.route`, Django `urlpatterns`            |
+| JS/TS    | React Router v6 `<Route path=...>`, Next.js `pages/` + `app/`, Vue Router |
+| HTML     | `<form action=...>`, `<a href=...>`, `<button>`                         |
+
+Install optional extras for JS/TS and HTML extraction:
+
+```bash
+pip install -e ".[js-extract]"   # tree-sitter + tree-sitter-typescript
+pip install -e ".[html-extract]" # selectolax
+```
+
+When these extras are missing the extractor gracefully degrades with a single
+warning per run and an install hint.
+
+### Manual route declarations
+
+Add a `[flow-graph]` section to `playwright-god.toml` to declare routes that
+cannot be auto-detected (e.g. dynamic route registration):
+
+```toml
+# playwright-god.toml
+[flow-graph]
+routes = [
+  { method = "POST", path = "/webhooks/{provider}", handler = "webhooks.dispatch" },
+]
+```
+
+These manually declared routes are merged with auto-extracted routes (manual
+declarations win on ID collision).
 
 ## Providers
 
@@ -397,10 +471,10 @@ pytest --cov=playwright_god --cov-report=term-missing
 ## Current Coverage
 
 Most recent verification in this workspace on April 19, 2026 (after the
-`iterative-refinement` change):
+`flow-graph-extraction` change):
 
-- `tests/unit` + `tests/integration`: `490 passed, 1 skipped`
-- package coverage for `playwright_god`: `99%` (`2171` statements, `27` missed)
+- `tests/unit` + `tests/integration`: `596 passed, 2 skipped`
+- package coverage for `playwright_god`: `99%` (`2924` statements, `36` missed)
 
 Per-module coverage from that run:
 
@@ -411,10 +485,15 @@ Per-module coverage from that run:
 | `playwright_god/auth_templates.py` | `100%` |
 | `playwright_god/chunker.py` | `100%` |
 | `playwright_god/cli.py` | `98%` |
-| `playwright_god/coverage.py` | `97%` |
+| `playwright_god/coverage.py` | `98%` |
 | `playwright_god/crawler.py` | `100%` |
 | `playwright_god/embedder.py` | `100%` |
+| `playwright_god/extractors/__init__.py` | `100%` |
+| `playwright_god/extractors/html.py` | `99%` |
+| `playwright_god/extractors/js_ts.py` | `97%` |
+| `playwright_god/extractors/python.py` | `99%` |
 | `playwright_god/feature_map.py` | `100%` |
+| `playwright_god/flow_graph.py` | `100%` |
 | `playwright_god/generator.py` | `99%` |
 | `playwright_god/indexer.py` | `100%` |
 | `playwright_god/memory_map.py` | `100%` |

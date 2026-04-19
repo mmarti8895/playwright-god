@@ -1956,3 +1956,219 @@ class TestRefineCommand:
         # Should still succeed; warning is on stderr (mixed into result.output by click runner).
         assert result.exit_code == 0, result.output
         assert "could not load --memory-map" in result.output
+
+
+# ---------------------------------------------------------------------------
+# `graph extract` subcommand (flow-graph-extraction)
+# ---------------------------------------------------------------------------
+
+
+class TestGraphExtractCLI:
+    def _write_app(self, root: Path) -> None:
+        (root / "api.py").write_text(
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n"
+            "@app.get('/healthz')\n"
+            "def hz():\n"
+            "    return 'ok'\n",
+            encoding="utf-8",
+        )
+
+    def test_extract_writes_default_path(self, runner, tmp_path):
+        self._write_app(tmp_path)
+        persist = tmp_path / "_pg"
+        result = runner.invoke(
+            cli,
+            ["graph", "extract", str(tmp_path), "--persist-dir", str(persist)],
+        )
+        assert result.exit_code == 0, result.output
+        out = persist / "flow_graph.json"
+        assert out.is_file()
+        assert "1 routes" in result.output
+        import json
+        data = json.loads(out.read_text(encoding="utf-8"))
+        assert any(n["id"] == "route:GET:/healthz" for n in data["nodes"])
+
+    def test_extract_explicit_output(self, runner, tmp_path):
+        self._write_app(tmp_path)
+        out = tmp_path / "graph.json"
+        result = runner.invoke(
+            cli, ["graph", "extract", str(tmp_path), "-o", str(out)]
+        )
+        assert result.exit_code == 0
+        assert out.is_file()
+
+    def test_check_passes_when_no_drift(self, runner, tmp_path):
+        self._write_app(tmp_path)
+        persist = tmp_path / "_pg"
+        first = runner.invoke(
+            cli, ["graph", "extract", str(tmp_path), "--persist-dir", str(persist)]
+        )
+        assert first.exit_code == 0
+        result = runner.invoke(
+            cli,
+            ["graph", "extract", str(tmp_path), "--persist-dir", str(persist), "--check"],
+        )
+        assert result.exit_code == 0
+        assert "up to date" in result.output
+
+    def test_check_fails_on_drift(self, runner, tmp_path):
+        self._write_app(tmp_path)
+        persist = tmp_path / "_pg"
+        runner.invoke(
+            cli, ["graph", "extract", str(tmp_path), "--persist-dir", str(persist)]
+        )
+        # Add a new route to introduce drift
+        (tmp_path / "api2.py").write_text(
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n"
+            "@app.post('/items')\n"
+            "def items():\n"
+            "    return {}\n",
+            encoding="utf-8",
+        )
+        result = runner.invoke(
+            cli,
+            ["graph", "extract", str(tmp_path), "--persist-dir", str(persist), "--check"],
+        )
+        assert result.exit_code == 1
+        assert "drift detected" in result.output
+        assert "+route:POST:/items" in result.output
+
+    def test_check_without_persisted_graph_errors(self, runner, tmp_path):
+        self._write_app(tmp_path)
+        result = runner.invoke(
+            cli,
+            ["graph", "extract", str(tmp_path),
+             "--persist-dir", str(tmp_path / "missing"), "--check"],
+        )
+        assert result.exit_code == 2
+        assert "requires an existing graph" in result.output
+
+    def test_plan_with_prioritize_routes(self, runner, tmp_path, monkeypatch):
+        # Build minimal index
+        (tmp_path / "api.py").write_text(
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n"
+            "@app.get('/x')\n"
+            "def x():\n    return 'ok'\n",
+            encoding="utf-8",
+        )
+        # Index
+        idx = runner.invoke(
+            cli,
+            ["index", str(tmp_path), "-d", str(tmp_path / "_idx"), "--mock-embedder"],
+        )
+        assert idx.exit_code == 0, idx.output
+        # Build flow graph
+        gout = tmp_path / "g.json"
+        runner.invoke(cli, ["graph", "extract", str(tmp_path), "-o", str(gout)])
+        # Build a coverage report json so plan accepts --coverage-report
+        cov_path = tmp_path / "cov.json"
+        cov_path.write_text(
+            '{"source":"merged","files":{"api.py":{"total_lines":5,'
+            '"covered_lines":2,"percent":40.0,"missing_line_ranges":[[3,5]]}},'
+            '"routes":{"total":1,"covered":[],"uncovered":["route:GET:/x"]}}',
+            encoding="utf-8",
+        )
+        plan_out = tmp_path / "plan.md"
+        result = runner.invoke(
+            cli,
+            [
+                "plan",
+                "-d", str(tmp_path / "_idx"),
+                "--coverage-report", str(cov_path),
+                "--prioritize", "routes",
+                "--flow-graph", str(gout),
+                "-o", str(plan_out),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert plan_out.is_file()
+
+
+# ---------------------------------------------------------------------------
+# Coverage report rendering with routes block
+# ---------------------------------------------------------------------------
+
+
+class TestCoverageReportRoutes:
+    def _payload(self) -> dict:
+        return {
+            "source": "merged",
+            "generated_at": "t",
+            "totals": {"total_files": 1, "total_lines": 5, "covered_lines": 3, "percent": 60.0},
+            "files": {"a.py": {"total_lines": 5, "covered_lines": 3, "percent": 60.0,
+                               "missing_line_ranges": [[4, 5]]}},
+            "routes": {
+                "total": 2,
+                "covered": ["route:GET:/a"],
+                "uncovered": ["route:POST:/b"],
+            },
+        }
+
+    def test_text_format_includes_routes(self, runner, tmp_path):
+        import json as _json
+        p = tmp_path / "cov.json"
+        p.write_text(_json.dumps(self._payload()), encoding="utf-8")
+        result = runner.invoke(cli, ["coverage", "report", str(p), "--format", "text"])
+        assert result.exit_code == 0, result.output
+        assert "Routes" in result.output
+        assert "route:POST:/b" in result.output
+
+    def test_html_format_includes_routes(self, runner, tmp_path):
+        import json as _json
+        p = tmp_path / "cov.json"
+        p.write_text(_json.dumps(self._payload()), encoding="utf-8")
+        result = runner.invoke(cli, ["coverage", "report", str(p), "--format", "html"])
+        assert result.exit_code == 0
+        assert "<h2>Routes" in result.output
+        assert "route:POST:/b" in result.output
+
+    def test_text_format_truncates_many_uncovered(self, runner, tmp_path):
+        import json as _json
+        payload = self._payload()
+        payload["routes"]["uncovered"] = [f"route:GET:/p{i}" for i in range(40)]
+        payload["routes"]["total"] = 41
+        p = tmp_path / "cov.json"
+        p.write_text(_json.dumps(payload), encoding="utf-8")
+        result = runner.invoke(cli, ["coverage", "report", str(p), "--format", "text"])
+        assert "more uncovered" in result.output
+
+    def test_routes_html_returns_empty_when_no_routes(self):
+        from playwright_god.cli import _render_coverage_routes_html
+        assert _render_coverage_routes_html({}) == ""
+
+
+def test_load_flow_graph_handles_invalid_json(runner, tmp_path):
+    from playwright_god.cli import _load_flow_graph
+
+    p = tmp_path / "bad.json"
+    p.write_text("{not json", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        _load_flow_graph(str(p))
+    assert exc.value.code == 1
+
+
+def test_load_flow_graph_succeeds_for_valid_payload(tmp_path):
+    from playwright_god.cli import _load_flow_graph
+    from playwright_god.flow_graph import FlowGraph, Route
+
+    g = FlowGraph.from_iterables([Route(method="GET", path="/x")])
+    p = tmp_path / "g.json"
+    p.write_text(g.to_json(), encoding="utf-8")
+    loaded = _load_flow_graph(str(p))
+    assert any(n.id == "route:GET:/x" for n in loaded.nodes)
+
+
+def test_graph_extract_check_with_corrupt_persisted(runner, tmp_path):
+    persist = tmp_path / "_pg"
+    persist.mkdir()
+    (persist / "flow_graph.json").write_text("not json", encoding="utf-8")
+    (tmp_path / "x.py").write_text("\n", encoding="utf-8")
+    result = runner.invoke(
+        cli, ["graph", "extract", str(tmp_path),
+              "--persist-dir", str(persist), "--check"],
+    )
+    assert result.exit_code == 2
+    assert "could not load" in result.output

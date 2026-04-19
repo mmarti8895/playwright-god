@@ -444,3 +444,110 @@ class TestTerminate:
             def poll(self): return None
             def send_signal(self, sig): raise OSError("nope")
         c._terminate(P())  # swallowed
+
+
+# ---------------------------------------------------------------------------
+# Routes block (flow-graph integration, schema 2.2)
+# ---------------------------------------------------------------------------
+
+
+class TestMergeWithFlowGraph:
+    def _graph(self):
+        from playwright_god.flow_graph import (
+            Evidence,
+            FlowGraph,
+            Route,
+        )
+
+        return FlowGraph.from_iterables(
+            nodes=[
+                Route(
+                    method="GET",
+                    path="/healthz",
+                    handler="hz",
+                    evidence=(Evidence("api/health.py", (1, 5)),),
+                ),
+                Route(
+                    method="POST",
+                    path="/items",
+                    handler="create_item",
+                    evidence=(Evidence("api/items.py", (10, 20)),),
+                ),
+            ]
+        )
+
+    def _backend_report(self):
+        from playwright_god.coverage import CoverageReport, FileCoverage
+
+        return CoverageReport(
+            source="backend",
+            files={
+                "api/health.py": FileCoverage(
+                    path="api/health.py",
+                    total_lines=5,
+                    covered_lines=5,
+                    covered_line_set=frozenset({1, 2, 3, 4, 5}),
+                ),
+                "api/items.py": FileCoverage(
+                    path="api/items.py",
+                    total_lines=10,
+                    covered_lines=0,
+                    covered_line_set=frozenset(),
+                ),
+            },
+            generated_at="t",
+        )
+
+    def test_routes_block_absent_without_graph(self):
+        from playwright_god.coverage import coverage_to_dict, merge
+
+        merged = merge(None, self._backend_report())
+        assert merged.routes == ()
+        assert "routes" not in coverage_to_dict(merged)
+
+    def test_routes_block_populated_with_graph(self):
+        from playwright_god.coverage import coverage_to_dict, merge
+
+        merged = merge(None, self._backend_report(), flow_graph=self._graph())
+        assert {r.route_id for r in merged.routes} == {
+            "route:GET:/healthz",
+            "route:POST:/items",
+        }
+        payload = coverage_to_dict(merged)
+        assert payload["routes"]["covered"] == ["route:GET:/healthz"]
+        assert payload["routes"]["uncovered"] == ["route:POST:/items"]
+        assert payload["routes"]["total"] == 2
+
+    def test_routes_roundtrip_through_dict(self):
+        from playwright_god.coverage import (
+            coverage_from_dict,
+            coverage_to_dict,
+            merge,
+        )
+
+        merged = merge(None, self._backend_report(), flow_graph=self._graph())
+        rebuilt = coverage_from_dict(coverage_to_dict(merged))
+        assert {r.route_id for r in rebuilt.routes} == {
+            "route:GET:/healthz",
+            "route:POST:/items",
+        }
+        covered = {r.route_id for r in rebuilt.routes if r.covered}
+        assert covered == {"route:GET:/healthz"}
+
+    def test_route_without_handler_evidence_is_uncovered(self):
+        from playwright_god.coverage import merge
+        from playwright_god.flow_graph import FlowGraph, Route
+
+        graph = FlowGraph.from_iterables(
+            nodes=[Route(method="GET", path="/orphan")]
+        )
+        merged = merge(None, self._backend_report(), flow_graph=graph)
+        assert merged.routes[0].covered is False
+
+    def test_graph_without_routes_attr_yields_empty_routes(self):
+        from playwright_god.coverage import _route_coverage
+
+        class Bare:
+            pass
+
+        assert _route_coverage(Bare(), {}) == ()

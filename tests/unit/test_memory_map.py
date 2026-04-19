@@ -14,7 +14,9 @@ from playwright_god.memory_map import (
     format_memory_map_for_prompt,
     load_memory_map,
     save_memory_map,
+    with_flow_graph,
 )
+from playwright_god.flow_graph import Evidence, FlowGraph, Route
 
 
 # ---------------------------------------------------------------------------
@@ -413,3 +415,59 @@ class TestSchema21Coverage:
         loaded = load_memory_map(str(dest))
         assert loaded["coverage"]["summary"]["files"] == 1
         assert loaded["schema_version"] == "2.1"
+
+
+# ---------------------------------------------------------------------------
+# Schema 2.2: flow graph
+# ---------------------------------------------------------------------------
+
+
+class TestFlowGraphSchema22:
+    def _graph(self) -> FlowGraph:
+        return FlowGraph.from_iterables(
+            nodes=[Route(method="GET", path="/x", evidence=(Evidence("a.py", (1, 1)),))]
+        )
+
+    def test_with_flow_graph_bumps_schema_to_22(self):
+        base = build_memory_map([])
+        out = with_flow_graph(base, self._graph())
+        assert out["schema_version"] == "2.2"
+        assert out["flow_graph"]["nodes"][0]["id"] == "route:GET:/x"
+
+    def test_with_flow_graph_none_clears_field(self):
+        base = build_memory_map([])
+        out = with_flow_graph(base, None)
+        assert out["flow_graph"] is None
+        assert out["schema_version"] == "2.2"
+
+    def test_load_21_map_defaults_flow_graph_none(self, tmp_path):
+        path = tmp_path / "m.json"
+        path.write_text(
+            json.dumps({"schema_version": "2.1", "files": []}), encoding="utf-8"
+        )
+        loaded = load_memory_map(str(path))
+        assert loaded["flow_graph"] is None
+        assert loaded["coverage"] is None
+
+    def test_22_roundtrip_via_disk(self, tmp_path):
+        base = build_memory_map([])
+        annotated = with_flow_graph(base, self._graph())
+        dest = tmp_path / "m.json"
+        save_memory_map(annotated, str(dest))
+        loaded = load_memory_map(str(dest))
+        assert loaded["schema_version"] == "2.2"
+        assert loaded["flow_graph"]["nodes"][0]["id"] == "route:GET:/x"
+        # FlowGraph rebuilt from on-disk payload survives the round-trip.
+        rebuilt = FlowGraph.from_dict(loaded["flow_graph"])
+        assert rebuilt.routes[0].id == "route:GET:/x"
+
+    def test_with_flow_graph_accepts_dict_payload(self):
+        base = build_memory_map([])
+        graph_dict = self._graph().to_dict()
+        out = with_flow_graph(base, graph_dict)
+        assert out["flow_graph"] == graph_dict
+
+    def test_higher_schema_not_downgraded(self):
+        base = {"schema_version": "2.5"}
+        out = with_flow_graph(base, self._graph())
+        assert out["schema_version"] == "2.5"

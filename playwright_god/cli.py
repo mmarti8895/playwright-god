@@ -739,13 +739,24 @@ def generate(
 )
 @click.option(
     "--prioritize",
-    type=click.Choice(["absolute", "percent"], case_sensitive=False),
+    type=click.Choice(["absolute", "percent", "routes"], case_sensitive=False),
     default="absolute",
     show_default=True,
     help=(
         "How to rank uncovered files in the Coverage Delta section: "
-        "'absolute' (most uncovered lines first) or 'percent' (lowest "
-        "covered percentage first)."
+        "'absolute' (most uncovered lines first), 'percent' (lowest "
+        "covered percentage first), or 'routes' (files referenced by the "
+        "most uncovered flow-graph routes first)."
+    ),
+)
+@click.option(
+    "--flow-graph",
+    "flow_graph_path",
+    default=None,
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help=(
+        "Path to a flow_graph.json (from `playwright-god graph extract`). "
+        "Annotates the plan with uncovered routes/actions."
     ),
 )
 def plan(
@@ -761,6 +772,7 @@ def plan(
     mock_embedder: bool,  # noqa: ARG001
     coverage_report_path: str | None,
     prioritize: str,
+    flow_graph_path: str | None,
 ) -> None:
     """Generate an AI-powered Playwright test plan from the indexed codebase.
 
@@ -878,6 +890,7 @@ def plan(
         focus=focus,
         coverage=coverage_payload,
         prioritize=prioritize.lower(),
+        flow_graph=_load_flow_graph(flow_graph_path) if flow_graph_path else None,
     )
 
     if output:
@@ -1190,6 +1203,21 @@ def _render_coverage_text(payload: dict) -> str:
             f"  {percent:6.2f}%  {covered}/{total}  {path}"
             + (f"  missing: {miss_str}" if miss_str else "")
         )
+    routes = payload.get("routes") or {}
+    if isinstance(routes, dict) and routes:
+        covered_ids = list(routes.get("covered") or [])
+        uncovered_ids = list(routes.get("uncovered") or [])
+        total = int(routes.get("total") or (len(covered_ids) + len(uncovered_ids)))
+        lines.extend([
+            "",
+            "Routes",
+            "------",
+            f"Covered  : {len(covered_ids)}/{total}",
+        ])
+        for rid in uncovered_ids[:25]:
+            lines.append(f"  uncovered: {rid}")
+        if len(uncovered_ids) > 25:
+            lines.append(f"  +{len(uncovered_ids) - 25} more uncovered")
     return "\n".join(lines)
 
 
@@ -1219,6 +1247,27 @@ def _render_coverage_html(payload: dict) -> str:
         f"{totals.get('total_files', len(files))} files.</p>"
         "<table><tr><th>File</th><th>Percent</th><th>Covered/Total</th></tr>"
         + "".join(rows)
+        + "</table>"
+        + _render_coverage_routes_html(payload)
+    )
+
+
+def _render_coverage_routes_html(payload: dict) -> str:
+    routes = payload.get("routes") or {}
+    if not isinstance(routes, dict) or not routes:
+        return ""
+    covered_ids = list(routes.get("covered") or [])
+    uncovered_ids = list(routes.get("uncovered") or [])
+    total = int(routes.get("total") or (len(covered_ids) + len(uncovered_ids)))
+    rows = "".join(
+        f"<tr><td>{rid}</td><td>covered</td></tr>" for rid in covered_ids
+    ) + "".join(
+        f"<tr><td>{rid}</td><td>uncovered</td></tr>" for rid in uncovered_ids
+    )
+    return (
+        f"<h2>Routes ({len(covered_ids)}/{total})</h2>"
+        "<table><tr><th>Route</th><th>Status</th></tr>"
+        + rows
         + "</table>"
     )
 
@@ -1406,6 +1455,125 @@ def refine(
         click.echo(f"Audit log: {result.log_path}", err=True)
 
     sys.exit(0 if result.final_outcome == "passed" else 1)
+
+
+# ---------------------------------------------------------------------------
+# `graph` subcommand group (flow-graph extraction)
+# ---------------------------------------------------------------------------
+
+
+def _load_flow_graph(path: str):
+    """Load a serialized FlowGraph; exits the CLI on failure."""
+
+    from .flow_graph import FlowGraph
+
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        click.echo(f"Error: could not load flow graph {path!r}: {exc}", err=True)
+        sys.exit(1)
+    return FlowGraph.from_dict(data)
+
+
+@cli.group(name="graph")
+def graph_group() -> None:
+    """Flow-graph extraction commands."""
+
+
+@graph_group.command(name="extract")
+@click.argument(
+    "source_path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--output",
+    "-o",
+    "output_path",
+    default=None,
+    type=click.Path(dir_okay=False),
+    help="Where to write flow_graph.json (default: <persist-dir>/flow_graph.json).",
+)
+@click.option(
+    "--persist-dir",
+    "-d",
+    default=".playwright_god_index",
+    show_default=True,
+)
+@click.option(
+    "--check",
+    is_flag=True,
+    default=False,
+    help=(
+        "Compare the freshly extracted graph against the persisted one and "
+        "exit non-zero on drift (prints a unified ID diff)."
+    ),
+)
+def graph_extract(
+    source_path: str,
+    output_path: str | None,
+    persist_dir: str,
+    check: bool,
+) -> None:
+    """Run extractors on SOURCE_PATH and write a flow_graph.json artifact."""
+
+    from .extractors import extract as _extract
+    from .flow_graph import FlowGraph
+
+    graph = _extract(source_path)
+    target = Path(output_path) if output_path else Path(persist_dir) / "flow_graph.json"
+
+    if check:
+        if not target.is_file():
+            click.echo(
+                f"Error: --check requires an existing graph at {target}.",
+                err=True,
+            )
+            sys.exit(2)
+        try:
+            persisted = FlowGraph.from_dict(
+                json.loads(target.read_text(encoding="utf-8"))
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            click.echo(f"Error: could not load {target}: {exc}", err=True)
+            sys.exit(2)
+        diff = _flow_graph_id_diff(persisted, graph)
+        if diff:
+            click.echo("Flow graph drift detected:")
+            click.echo(diff)
+            sys.exit(1)
+        click.echo(
+            f"Flow graph up to date: {len(graph.routes)} routes, "
+            f"{len(graph.views)} views, {len(graph.actions)} actions."
+        )
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(graph.to_json() + "\n", encoding="utf-8")
+    click.echo(
+        f"{len(graph.routes)} routes, {len(graph.views)} views, "
+        f"{len(graph.actions)} actions written to {target}"
+    )
+
+
+def _flow_graph_id_diff(old, new) -> str:
+    """Return a unified diff of node IDs between two graphs (empty if equal)."""
+
+    import difflib
+
+    old_ids = sorted(old.node_ids())
+    new_ids = sorted(new.node_ids())
+    if old_ids == new_ids:
+        return ""
+    diff = difflib.unified_diff(
+        [i + "\n" for i in old_ids],
+        [i + "\n" for i in new_ids],
+        fromfile="persisted",
+        tofile="extracted",
+        lineterm="",
+    )
+    return "".join(diff)
 
 
 def main() -> None:

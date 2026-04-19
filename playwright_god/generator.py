@@ -480,6 +480,8 @@ class PlaywrightTestGenerator:
         uncovered_cap: int = 12,
         failure_excerpt: str | None = None,
         coverage_delta: "object | None" = None,
+        flow_graph: "object | None" = None,
+        flow_graph_cap: int = 5,
     ) -> str:
         context_chunks: list[SearchResult] = []
         if self.indexer is not None:
@@ -530,6 +532,17 @@ class PlaywrightTestGenerator:
                     else delta_block
                 )
 
+        if flow_graph is not None:
+            graph_block = self._format_flow_graph_subgraph(
+                flow_graph, description, cap=flow_graph_cap
+            )
+            if graph_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + graph_block)
+                    if combined_extra
+                    else graph_block
+                )
+
         prompt = self._build_prompt(description, context_chunks, combined_extra)
         result = self.llm_client.complete(prompt)
         if redact_secrets:
@@ -543,6 +556,7 @@ class PlaywrightTestGenerator:
         *,
         coverage: dict | None = None,
         prioritize: str = "absolute",
+        flow_graph: "object | None" = None,
     ) -> str:
         parts: list[str] = [
             "Below is a memory map of the indexed repository. Use it to propose a comprehensive Playwright test plan.",
@@ -555,9 +569,18 @@ class PlaywrightTestGenerator:
             parts += [f"Focus area: {focus}", ""]
 
         if coverage:
-            delta = self._format_coverage_delta(coverage, prioritize=prioritize)
+            delta = self._format_coverage_delta(
+                coverage, prioritize=prioritize, flow_graph=flow_graph
+            )
             if delta:
                 parts += [delta, ""]
+
+        if flow_graph is not None:
+            graph_summary = self._format_flow_graph_for_plan(
+                flow_graph, coverage=coverage
+            )
+            if graph_summary:
+                parts += [graph_summary, ""]
 
         parts += [
             "Generate a Markdown test plan. For each feature area list specific, actionable test scenarios in plain English.",
@@ -567,26 +590,53 @@ class PlaywrightTestGenerator:
                 "Include a `## Coverage Delta` section that lists the highest-priority "
                 "uncovered files and the scenarios that would close those gaps.",
             ]
+        if flow_graph is not None:
+            parts += [
+                "When a flow graph is supplied, annotate each feature area with the "
+                "uncovered routes and actions it should target.",
+            ]
         return self.llm_client.complete(
             "\n".join(parts),
             system_prompt=PlaywrightTestGenerator.PLAN_SYSTEM_PROMPT,
         )
 
     @staticmethod
-    def _format_coverage_delta(coverage: dict, *, prioritize: str = "absolute") -> str:
+    def _format_coverage_delta(
+        coverage: dict,
+        *,
+        prioritize: str = "absolute",
+        flow_graph: "object | None" = None,
+    ) -> str:
         """Format a `Coverage Delta` block listing prioritised uncovered files."""
 
         files = coverage.get("files") or []
         if not files:
             return ""
 
+        # When prioritising by routes, order files by how many uncovered routes
+        # cite them as handler evidence.
+        route_weight: dict[str, int] = {}
+        if prioritize == "routes" and flow_graph is not None:
+            uncovered_route_ids: set[str] = set()
+            cov_routes = (coverage.get("routes") or {}) if isinstance(coverage, dict) else {}
+            if isinstance(cov_routes, dict):
+                uncovered_route_ids = set(cov_routes.get("uncovered") or [])
+            for route in getattr(flow_graph, "routes", ()) or ():
+                if uncovered_route_ids and route.id not in uncovered_route_ids:
+                    continue
+                for ev in getattr(route, "evidence", ()) or ():
+                    f = getattr(ev, "file", None)
+                    if f:
+                        route_weight[f] = route_weight.get(f, 0) + 1
+
         def _key(entry: dict):
             uncovered = len(entry.get("uncovered_lines") or [])
             percent = float(entry.get("percent", 100.0))
             if prioritize == "percent":
-                # Lowest covered percent first, then most uncovered lines.
                 return (percent, -uncovered)
-            # Default: most uncovered lines first, then lowest percent.
+            if prioritize == "routes":
+                # Highest route-weight first (most uncovered routes touching this file).
+                return (-route_weight.get(entry.get("path", ""), 0), -uncovered, percent)
             return (-uncovered, percent)
 
         ranked = sorted(
@@ -610,10 +660,113 @@ class PlaywrightTestGenerator:
         lines.append("")
         for entry in ranked[:12]:
             uncovered = entry.get("uncovered_lines") or []
+            extra = ""
+            if prioritize == "routes":
+                w = route_weight.get(entry.get("path", ""), 0)
+                if w:
+                    extra = f", {w} uncovered route(s)"
             lines.append(
                 f"- `{entry.get('path', '?')}` — {entry.get('percent', 0.0)}% "
-                f"covered, {len(uncovered)} uncovered line(s)"
+                f"covered, {len(uncovered)} uncovered line(s){extra}"
             )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_flow_graph_for_plan(
+        flow_graph: "object | None",
+        *,
+        coverage: dict | None = None,
+    ) -> str:
+        """Annotate the plan prompt with a flow-graph summary.
+
+        When *coverage* contains a ``routes`` block, uncovered routes are
+        called out explicitly so the planner can drive scenarios at them.
+        """
+
+        if flow_graph is None:
+            return ""
+        routes = tuple(getattr(flow_graph, "routes", ()) or ())
+        actions = tuple(getattr(flow_graph, "actions", ()) or ())
+        if not routes and not actions:
+            return ""
+        uncovered_ids: set[str] = set()
+        has_routes_block = False
+        if isinstance(coverage, dict):
+            cov_routes = coverage.get("routes") or {}
+            if isinstance(cov_routes, dict) and "uncovered" in cov_routes:
+                has_routes_block = True
+                uncovered_ids = set(cov_routes.get("uncovered") or [])
+        lines = ["## Flow Graph"]
+        if routes:
+            lines.append(f"Routes: {len(routes)}")
+            shown = 0
+            for r in routes:
+                if has_routes_block and r.id not in uncovered_ids:
+                    continue
+                lines.append(f"- uncovered: `{r.id}`")
+                shown += 1
+                if shown >= 12:
+                    break
+            if has_routes_block and shown == 0:
+                lines.append("- (all routes covered)")
+        if actions:
+            lines.append("")
+            lines.append(f"Actions: {len(actions)} (sample of 8)")
+            for a in actions[:8]:
+                lines.append(f"- `{a.id}`")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_flow_graph_subgraph(
+        flow_graph: "object",
+        description: str,
+        *,
+        cap: int = 5,
+    ) -> str:
+        """Return a `Relevant routes & actions` block for a generate prompt.
+
+        Heuristic: rank routes/actions by simple keyword overlap with the
+        description, then take the top *cap* of each.
+        """
+
+        routes = tuple(getattr(flow_graph, "routes", ()) or ())
+        actions = tuple(getattr(flow_graph, "actions", ()) or ())
+        if not routes and not actions:
+            return ""
+        terms = {t.lower() for t in re.findall(r"[A-Za-z]{3,}", description or "")}
+
+        def _score(node_id: str, *extra: str) -> int:
+            blob = " ".join((node_id, *extra)).lower()
+            return sum(1 for t in terms if t in blob)
+
+        ranked_routes = sorted(
+            routes,
+            key=lambda r: (-_score(r.id, r.path, r.handler), r.id),
+        )[:max(0, int(cap))]
+        ranked_actions = sorted(
+            actions,
+            key=lambda a: (-_score(a.id, a.role, a.file), a.id),
+        )[:max(0, int(cap))]
+        if not ranked_routes and not ranked_actions:
+            return ""
+
+        lines = ["Relevant routes & actions:", "=" * 60]
+        if ranked_routes:
+            lines.append("Routes:")
+            for r in ranked_routes:
+                ev = ""
+                if r.evidence:
+                    e0 = r.evidence[0]
+                    ev = f" ({e0.file}:{e0.line_range[0]}-{e0.line_range[1]})"
+                lines.append(f"  - {r.id}{ev}")
+        if ranked_actions:
+            lines.append("Actions:")
+            for a in ranked_actions:
+                ev = ""
+                if a.evidence:
+                    e0 = a.evidence[0]
+                    ev = f" ({e0.file}:{e0.line_range[0]}-{e0.line_range[1]})"
+                lines.append(f"  - {a.id}{ev}")
         return "\n".join(lines)
 
     @staticmethod

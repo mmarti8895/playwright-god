@@ -141,7 +141,34 @@ def load_memory_map(path: str) -> dict:
                 "expected a 2.x schema."
             )
         data.setdefault("coverage", None)
+        data.setdefault("flow_graph", None)
     return data
+
+
+def with_flow_graph(memory_map: dict, flow_graph) -> dict:
+    """Return a copy of *memory_map* annotated with a serialized flow graph.
+
+    Bumps ``schema_version`` to ``"2.2"`` (or leaves a higher 2.x version
+    untouched).  *flow_graph* may be a
+    :class:`playwright_god.flow_graph.FlowGraph` instance or any object
+    exposing a ``to_dict()`` method that returns the canonical graph payload.
+    """
+
+    out = dict(memory_map)
+    current = str(out.get("schema_version", "2.0"))
+    if not current.startswith("2.") or current < "2.2":
+        out["schema_version"] = "2.2"
+    if flow_graph is None:
+        out["flow_graph"] = None
+        return out
+    if hasattr(flow_graph, "to_dict"):
+        payload = flow_graph.to_dict()
+    elif isinstance(flow_graph, dict):
+        payload = flow_graph
+    else:  # pragma: no cover — defensive
+        raise TypeError(f"unsupported flow_graph type: {type(flow_graph)!r}")
+    out["flow_graph"] = payload
+    return out
 
 
 def format_memory_map_for_prompt(memory_map: dict) -> str:

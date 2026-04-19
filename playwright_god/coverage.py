@@ -101,6 +101,18 @@ class MergedCoverageReport(CoverageReport):
     """
 
     merge_meta: tuple[CoverageSource, ...] = ()
+    routes: tuple["RouteCoverage", ...] = ()
+
+
+@dataclass(frozen=True)
+class RouteCoverage:
+    """Per-route coverage outcome derived from handler evidence."""
+
+    route_id: str
+    method: str
+    path: str
+    covered: bool
+    handler_files: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -236,12 +248,20 @@ def parse_python_coverage_json(payload: Mapping) -> dict[str, FileCoverage]:
 def merge(
     frontend: CoverageReport | None,
     backend: CoverageReport | None,
+    *,
+    flow_graph: object | None = None,
 ) -> MergedCoverageReport:
     """Union two single-source reports into a merged one.
 
     Files unique to either source are concatenated; files present in both have
     their covered-line sets unioned. Totals are recomputed from the merged
     file set.
+
+    When *flow_graph* is supplied (a
+    :class:`playwright_god.flow_graph.FlowGraph`), the merged report also
+    carries a ``routes`` tuple where each :class:`RouteCoverage` is marked
+    covered iff any of its handler-evidence files have at least one covered
+    line in the merged file map.
     """
 
     sources: list[CoverageSource] = []
@@ -277,7 +297,42 @@ def merge(
         files=files,
         generated_at=_now(),
         merge_meta=tuple(sources),
+        routes=_route_coverage(flow_graph, files),
     )
+
+
+def _route_coverage(
+    flow_graph: object | None,
+    files: Mapping[str, FileCoverage],
+) -> tuple[RouteCoverage, ...]:
+    """Map flow-graph routes to per-route coverage via handler evidence."""
+
+    if flow_graph is None:
+        return ()
+    routes_attr = getattr(flow_graph, "routes", None)
+    if routes_attr is None:
+        return ()
+    out: list[RouteCoverage] = []
+    for route in routes_attr:
+        handler_files: list[str] = []
+        for ev in getattr(route, "evidence", ()) or ():
+            ev_file = getattr(ev, "file", None)
+            if ev_file:
+                handler_files.append(ev_file)
+        covered = False
+        for hf in handler_files:
+            fc = files.get(hf)
+            if fc is not None and fc.covered_lines > 0:
+                covered = True
+                break
+        out.append(RouteCoverage(
+            route_id=route.id,
+            method=route.method,
+            path=route.path,
+            covered=covered,
+            handler_files=tuple(dict.fromkeys(handler_files)),
+        ))
+    return tuple(out)
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +343,7 @@ def merge(
 def coverage_to_dict(report: CoverageReport) -> dict:
     """Serialize a :class:`CoverageReport` to a JSON-safe dict."""
 
-    return {
+    payload: dict = {
         "source": report.source,
         "generated_at": report.generated_at,
         "merge_meta": list(getattr(report, "merge_meta", ()) or ()),
@@ -308,6 +363,26 @@ def coverage_to_dict(report: CoverageReport) -> dict:
             for path, fc in report.files.items()
         },
     }
+    routes = tuple(getattr(report, "routes", ()) or ())
+    if routes:
+        covered_ids = sorted(r.route_id for r in routes if r.covered)
+        uncovered_ids = sorted(r.route_id for r in routes if not r.covered)
+        payload["routes"] = {
+            "total": len(routes),
+            "covered": covered_ids,
+            "uncovered": uncovered_ids,
+            "details": [
+                {
+                    "route_id": r.route_id,
+                    "method": r.method,
+                    "path": r.path,
+                    "covered": r.covered,
+                    "handler_files": list(r.handler_files),
+                }
+                for r in sorted(routes, key=lambda r: r.route_id)
+            ],
+        }
+    return payload
 
 
 def coverage_from_dict(payload: Mapping) -> CoverageReport:
@@ -327,11 +402,27 @@ def coverage_from_dict(payload: Mapping) -> CoverageReport:
     source = payload.get("source", "merged")
     generated_at = payload.get("generated_at") or _now()
     if source == "merged":
+        routes_payload = payload.get("routes") or {}
+        details = routes_payload.get("details") if isinstance(routes_payload, Mapping) else None
+        routes_tuple: tuple[RouteCoverage, ...] = ()
+        if details:
+            routes_tuple = tuple(
+                RouteCoverage(
+                    route_id=str(d.get("route_id", "")),
+                    method=str(d.get("method", "")),
+                    path=str(d.get("path", "")),
+                    covered=bool(d.get("covered", False)),
+                    handler_files=tuple(d.get("handler_files") or ()),
+                )
+                for d in details
+                if isinstance(d, Mapping)
+            )
         return MergedCoverageReport(
             source="merged",
             files=files,
             generated_at=generated_at,
             merge_meta=tuple(payload.get("merge_meta") or ()),
+            routes=routes_tuple,
         )
     return CoverageReport(source=source, files=files, generated_at=generated_at)
 
@@ -574,6 +665,7 @@ __all__ = [
     "CoverageReport",
     "FileCoverage",
     "MergedCoverageReport",
+    "RouteCoverage",
     "coverage_fixture_path",
     "coverage_from_dict",
     "coverage_to_dict",

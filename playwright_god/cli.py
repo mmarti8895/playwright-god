@@ -1223,6 +1223,191 @@ def _render_coverage_html(payload: dict) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# `refine` subcommand (iterative-refinement)
+# ---------------------------------------------------------------------------
+
+
+@cli.command(name="refine")
+@click.argument("description")
+@click.option(
+    "--output",
+    "-o",
+    required=True,
+    type=click.Path(dir_okay=False),
+    help="Path for the final spec file (overwritten on every attempt).",
+)
+@click.option(
+    "--persist-dir",
+    "-d",
+    default=".playwright_god_index",
+    show_default=True,
+)
+@click.option("--collection", "-c", default="repo", show_default=True)
+@click.option(
+    "--memory-map",
+    "-m",
+    default=None,
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+)
+@click.option(
+    "--target-dir",
+    default=None,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--artifact-dir",
+    default=None,
+    type=click.Path(file_okay=False, dir_okay=True),
+    help="Root directory for per-run artifacts and the refinement audit log.",
+)
+@click.option(
+    "--max-attempts",
+    default=3,
+    show_default=True,
+    type=int,
+    help="Maximum generate→run cycles (hard cap: 8).",
+)
+@click.option(
+    "--stop-on",
+    type=click.Choice(["passed", "covered", "stable"], case_sensitive=False),
+    default="passed",
+    show_default=True,
+)
+@click.option("--coverage-target", default=0.95, show_default=True, type=float)
+@click.option("--retry-on-flake", default=0, show_default=True, type=int)
+@click.option(
+    "--provider",
+    default=None,
+    type=click.Choice(
+        ["openai", "anthropic", "gemini", "ollama", "template"],
+        case_sensitive=False,
+    ),
+)
+@click.option("--model", default=None)
+@click.option("--api-key", default=None)
+@click.option("--ollama-url", default="http://localhost:11434", show_default=True)
+@click.option("--mock-embedder", is_flag=True, default=False, hidden=True)
+def refine(
+    description: str,
+    output: str,
+    persist_dir: str,
+    collection: str,
+    memory_map: str | None,
+    target_dir: str | None,
+    artifact_dir: str | None,
+    max_attempts: int,
+    stop_on: str,
+    coverage_target: float,
+    retry_on_flake: int,
+    provider: str | None,
+    model: str | None,
+    api_key: str | None,
+    ollama_url: str,
+    mock_embedder: bool,
+) -> None:
+    """Iteratively generate, run, and refine a spec until it passes (or the cap is hit)."""
+
+    from .refinement import (
+        HIGH_ATTEMPT_WARN_THRESHOLD,
+        MAX_ATTEMPTS_HARD_CAP,
+        RefinementConfigError,
+        RefinementLoop,
+    )
+
+    if max_attempts > MAX_ATTEMPTS_HARD_CAP:
+        click.echo(
+            f"Error: --max-attempts {max_attempts} exceeds the hard cap of "
+            f"{MAX_ATTEMPTS_HARD_CAP}.",
+            err=True,
+        )
+        sys.exit(2)
+    if max_attempts > HIGH_ATTEMPT_WARN_THRESHOLD:
+        click.echo(
+            f"Warning: high attempt cap ({max_attempts}); LLM cost grows linearly. "
+            "Consider --max-attempts <= 5.",
+            err=True,
+        )
+
+    provider, model, api_key, ollama_url = _resolve_provider_config(
+        provider, model, api_key, ollama_url
+    )
+    from .embedder import MockEmbedder as _MockEmbedder
+
+    embedder = _MockEmbedder() if mock_embedder else DefaultEmbedder()
+    indexer = RepositoryIndexer(
+        collection_name=collection,
+        persist_dir=persist_dir,
+        embedder=embedder,
+    )
+
+    if provider == "openai":
+        llm_client = OpenAIClient(
+            api_key=api_key or os.environ.get("OPENAI_API_KEY", ""),
+            model=model or "gpt-4o",
+        )
+    elif provider == "anthropic":
+        llm_client = AnthropicClient(
+            api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""),
+            model=model or "claude-3-5-sonnet-20241022",
+        )
+    elif provider == "gemini":
+        llm_client = GeminiClient(
+            api_key=api_key or os.environ.get("GOOGLE_API_KEY", ""),
+            model=model or "gemini-1.5-pro",
+        )
+    elif provider == "ollama":
+        llm_client = OllamaClient(model=model or "llama3", base_url=ollama_url)
+    else:
+        llm_client = TemplateLLMClient()
+
+    generator = PlaywrightTestGenerator(llm_client=llm_client, indexer=indexer)
+
+    extra_context: str | None = None
+    if memory_map:
+        try:
+            map_data = load_memory_map(memory_map)
+            extra_context = format_memory_map_for_prompt(map_data)
+        except (FileNotFoundError, ValueError) as exc:
+            click.echo(f"Warning: could not load --memory-map {memory_map!r}: {exc}", err=True)
+
+    runner = PlaywrightRunner(target_dir=target_dir, artifact_dir=artifact_dir)
+    log_dir = Path(artifact_dir) if artifact_dir else None
+
+    try:
+        loop = RefinementLoop(
+            generator=generator,
+            runner=runner,
+            spec_path=Path(output),
+            max_attempts=max_attempts,
+            stop_on=stop_on.lower(),  # type: ignore[arg-type]
+            coverage_target=coverage_target,
+            retry_on_flake=retry_on_flake,
+            log_dir=log_dir,
+            generator_kwargs=({"extra_context": extra_context} if extra_context else {}),
+        )
+    except RefinementConfigError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
+
+    try:
+        result = loop.run(description)
+    except RunnerSetupError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
+
+    click.echo(
+        f"Refinement: {len(result.attempts)} attempt(s); "
+        f"final outcome={result.final_outcome}; stop_reason={result.stop_reason}; "
+        f"final spec={result.final_spec_path}",
+        err=True,
+    )
+    if result.log_path is not None:
+        click.echo(f"Audit log: {result.log_path}", err=True)
+
+    sys.exit(0 if result.final_outcome == "passed" else 1)
+
+
 def main() -> None:
     """Entry point for the ``playwright-god`` CLI command."""
     cli()

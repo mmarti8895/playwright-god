@@ -9,36 +9,9 @@ import textwrap
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence
 
+from ._secrets import _SAFE_VALUES, _SECRET_PATTERNS  # re-exported for back-compat
 from .auth_templates import get_auth_hint, get_template
 from .indexer import RepositoryIndexer, SearchResult
-
-_SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (
-        re.compile(r"""(password\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1process.env.TEST_PASSWORD ?? ""',
-    ),
-    (
-        re.compile(r"""((?:username|user)\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1process.env.TEST_USERNAME ?? ""',
-    ),
-    (
-        re.compile(r"""(api[_-]?key\s*[=:]\s*)(['"])([^'"]{8,})(\2)""", re.IGNORECASE),
-        r'\1process.env.API_KEY ?? ""',
-    ),
-    (
-        re.compile(r"""((?:access_?)?token\s*[=:]\s*)(['"])([^'"]{8,})(\2)""", re.IGNORECASE),
-        r'\1process.env.ACCESS_TOKEN ?? ""',
-    ),
-    (
-        re.compile(r"""(secret\s*[=:]\s*)(['"])([^'"]{4,})(\2)""", re.IGNORECASE),
-        r'\1process.env.SECRET ?? ""',
-    ),
-]
-
-_SAFE_VALUES: re.Pattern[str] = re.compile(
-    r"os\.environ|getenv|process\.env|<[A-Z_]+>|YOUR_|PLACEHOLDER|EXAMPLE|CHANGE_ME",
-    re.IGNORECASE,
-)
 
 
 class LLMClient(ABC):
@@ -505,6 +478,8 @@ class PlaywrightTestGenerator:
         redact_secrets: bool = True,
         uncovered_excerpts: Sequence[tuple[str, int, int, str]] | None = None,
         uncovered_cap: int = 12,
+        failure_excerpt: str | None = None,
+        coverage_delta: "object | None" = None,
     ) -> str:
         context_chunks: list[SearchResult] = []
         if self.indexer is not None:
@@ -535,6 +510,24 @@ class PlaywrightTestGenerator:
             if gap_block:
                 combined_extra = (
                     (combined_extra + "\n\n" + gap_block) if combined_extra else gap_block
+                )
+
+        if failure_excerpt:
+            failure_block = self._format_failure_excerpt(failure_excerpt)
+            if failure_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + failure_block)
+                    if combined_extra
+                    else failure_block
+                )
+
+        if coverage_delta:
+            delta_block = self._format_coverage_delta_addendum(coverage_delta)
+            if delta_block:
+                combined_extra = (
+                    (combined_extra + "\n\n" + delta_block)
+                    if combined_extra
+                    else delta_block
                 )
 
         prompt = self._build_prompt(description, context_chunks, combined_extra)
@@ -649,6 +642,61 @@ class PlaywrightTestGenerator:
             lines.append(
                 f"(+{len(excerpts) - len(head)} more uncovered excerpts omitted)"
             )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_failure_excerpt(excerpt: str, *, max_bytes: int = 2048) -> str:
+        """Format a `Previous attempt failure` block.
+
+        The excerpt is expected to have already been redacted by the caller
+        (the refinement loop runs it through :func:`playwright_god._secrets.redact`
+        before invoking ``generate``). We do *not* re-redact here so that the
+        caller's choice is honoured byte-for-byte.
+        """
+
+        if not excerpt or not excerpt.strip():
+            return ""
+        body = excerpt
+        if len(body.encode("utf-8")) > max_bytes:
+            body = body.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+            body = body.rstrip() + "\n... (truncated)"
+        return "Previous attempt failure:\n" + ("=" * 60) + "\n" + body.rstrip()
+
+    @staticmethod
+    def _format_coverage_delta_addendum(delta: object) -> str:
+        """Format a `Coverage delta since last attempt` block.
+
+        ``delta`` may be:
+        - a mapping with ``newly_covered`` / ``still_uncovered`` lists, or
+        - any object exposing those attributes (e.g. a dataclass), or
+        - an iterable of ``(path, status)`` pairs.
+        """
+
+        if delta is None:
+            return ""
+
+        newly_covered: list[str] = []
+        still_uncovered: list[str] = []
+
+        if isinstance(delta, dict):
+            newly_covered = list(delta.get("newly_covered") or [])
+            still_uncovered = list(delta.get("still_uncovered") or [])
+        else:
+            newly_covered = list(getattr(delta, "newly_covered", []) or [])
+            still_uncovered = list(getattr(delta, "still_uncovered", []) or [])
+
+        if not newly_covered and not still_uncovered:
+            return ""
+
+        lines = ["Coverage delta since last attempt:", "=" * 60]
+        if newly_covered:
+            lines.append("Newly covered:")
+            for path in newly_covered[:20]:
+                lines.append(f"  + {path}")
+        if still_uncovered:
+            lines.append("Still uncovered:")
+            for path in still_uncovered[:20]:
+                lines.append(f"  - {path}")
         return "\n".join(lines)
 
     @staticmethod

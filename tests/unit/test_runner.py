@@ -346,3 +346,80 @@ def test_run_loads_coverage_files_into_runresult(tmp_path, monkeypatch):
     assert len(result.coverage_raw) == 2
     urls = {e.get("url") for e in result.coverage_raw}
     assert urls == {"x.js", "y.js"}
+
+
+# ---------------------------------------------------------------------------
+# is_actionable_failure() truth table (iterative-refinement Task 5.4 / 2.1)
+# ---------------------------------------------------------------------------
+
+
+def _rr(*, status="passed", exit_code=0, tests=(), stderr="") -> RunResult:
+    return RunResult(
+        status=status,
+        duration_ms=0,
+        tests=tuple(tests),
+        exit_code=exit_code,
+        stdout="",
+        stderr=stderr,
+    )
+
+
+def test_is_actionable_failure_passed_with_clean_run() -> None:
+    rr = _rr(
+        status="passed",
+        exit_code=0,
+        tests=[TestCaseResult(title="t", status="passed", duration_ms=1)],
+    )
+    assert rr.is_actionable_failure() == "passed"
+
+
+def test_is_actionable_failure_passed_with_skipped_only() -> None:
+    rr = _rr(
+        status="passed",
+        exit_code=0,
+        tests=[TestCaseResult(title="t", status="skipped", duration_ms=0)],
+    )
+    assert rr.is_actionable_failure() == "passed"
+
+
+def test_is_actionable_failure_runtime_failed_on_failed_test() -> None:
+    rr = _rr(
+        status="failed",
+        exit_code=1,
+        tests=[TestCaseResult(title="t", status="failed", duration_ms=1)],
+    )
+    assert rr.is_actionable_failure() == "runtime_failed"
+
+
+def test_is_actionable_failure_runtime_failed_on_timeout() -> None:
+    rr = _rr(
+        status="failed",
+        exit_code=1,
+        tests=[TestCaseResult(title="t", status="timedOut", duration_ms=30000)],
+    )
+    assert rr.is_actionable_failure() == "runtime_failed"
+
+
+def test_is_actionable_failure_compile_failed_on_ts_error_no_tests() -> None:
+    rr = _rr(
+        status="error",
+        exit_code=1,
+        tests=[],
+        stderr="src/foo.spec.ts(3,5): error TS2304: Cannot find name 'foo'.",
+    )
+    assert rr.is_actionable_failure() == "compile_failed"
+
+
+def test_is_actionable_failure_error_when_no_tests_and_no_compile_pattern() -> None:
+    rr = _rr(status="error", exit_code=1, tests=[], stderr="cosmic ray hit")
+    assert rr.is_actionable_failure() == "error"
+
+
+def test_is_actionable_failure_runtime_wins_over_compile_when_tests_ran() -> None:
+    rr = _rr(
+        status="failed",
+        exit_code=1,
+        tests=[TestCaseResult(title="t", status="failed", duration_ms=1)],
+        stderr="error TS2304: foo",  # compile-pattern present, but tests ran
+    )
+    assert rr.is_actionable_failure() == "runtime_failed"

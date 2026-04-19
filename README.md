@@ -233,6 +233,54 @@ Install the optional Python coverage extra when using `--backend-coverage`:
 pip install -e ".[coverage]"
 ```
 
+## Iterative refinement
+
+`playwright-god refine` runs a bounded **generate → run → evaluate → re-prompt**
+loop. It writes the latest spec to `--output` on every attempt, classifies the
+run as `compile_failed` / `runtime_failed` / `passed_with_gap` / `passed`,
+feeds a redacted failure excerpt and a coverage delta back into the next
+prompt, and finally keeps the spec with the highest coverage (latest wins on
+ties).
+
+```bash
+playwright-god refine "checkout flow with discount code" \
+  -o tests/checkout.spec.ts \
+  --max-attempts 3 \
+  --stop-on covered --coverage-target 0.95 \
+  --retry-on-flake 1 \
+  --artifact-dir .pg-artifacts
+```
+
+Flags:
+
+- `--max-attempts N` — hard cap is **8**; values **> 5** print a cost warning.
+- `--stop-on {passed,covered,stable}` — exit policy.
+  - `passed` (default): stop on the first green run.
+  - `covered`: stop when overall coverage ≥ `--coverage-target`.
+  - `stable`: stop on two consecutive `passed_with_gap` outcomes with no
+    coverage gain (or a clear pass).
+- `--retry-on-flake N` — re-run a failing attempt up to `N` times before
+  classifying as a real failure.
+- `--memory-map` — same memory-map file the `generate` command consumes.
+- `--artifact-dir DIR` — when set, every attempt is appended to
+  `<DIR>/runs/<UTC>/refinement_log.jsonl`.
+
+**Audit log.** Each attempt is one JSON object on its own line:
+
+```jsonl
+{"attempt":1,"prompt_hash":"4e07…","spec_path":"tests/checkout.spec.ts","run_summary":{"status":"failed","exit_code":1,"duration_ms":820,"tests":[{"title":"checkout","status":"failed","duration_ms":820}],"report_dir":null,"spec_path":"tests/checkout.spec.ts"},"evaluation":{"outcome":"runtime_failed","coverage_gain":0.0,"coverage_percent":0.0,"failure_excerpt":"[failed] checkout\nExpected element to be visible"},"next_prompt_addendum":"Previous attempt outcome: runtime_failed\nFailure excerpt (redacted):\n[failed] checkout\nExpected element to be visible","timestamp":"2026-04-19T12:34:56+00:00"}
+{"attempt":2,"prompt_hash":"a91b…","spec_path":"tests/checkout.spec.ts","run_summary":{"status":"passed","exit_code":0,"duration_ms":640,"tests":[{"title":"checkout","status":"passed","duration_ms":640}],"report_dir":null,"spec_path":"tests/checkout.spec.ts"},"evaluation":{"outcome":"passed","coverage_gain":0.0,"coverage_percent":0.0,"failure_excerpt":null},"next_prompt_addendum":null,"timestamp":"2026-04-19T12:35:01+00:00"}
+```
+
+All failure excerpts and addenda are passed through a centralized secret
+redactor (`playwright_god._secrets.redact`) before being logged or fed back
+into the next prompt — Bearer tokens, provider keys (`sk-…`, `sk-ant-…`,
+`AIza…`, `gh[pousr]_…`), and `*_API_KEY=…` / `password=…` assignments are
+replaced with `[REDACTED]`.
+
+**Cost warning.** Each attempt is a full LLM round-trip plus a Playwright
+run; budget for `max_attempts × (generation + execution)` time per refinement.
+
 ## Memory Map
 
 The saved memory map keeps the original file inventory and extends it with streamlined repository understanding:
@@ -348,26 +396,30 @@ pytest --cov=playwright_god --cov-report=term-missing
 
 ## Current Coverage
 
-Most recent verification in this workspace on April 19, 2026:
+Most recent verification in this workspace on April 19, 2026 (after the
+`iterative-refinement` change):
 
-- `tests/unit` + `tests/integration`: `351 passed, 1 skipped`
-- package coverage for `playwright_god`: `99%` (`1256` statements, `18` missed)
+- `tests/unit` + `tests/integration`: `490 passed, 1 skipped`
+- package coverage for `playwright_god`: `99%` (`2171` statements, `27` missed)
 
 Per-module coverage from that run:
 
 | Module | Coverage |
 |------|---------|
 | `playwright_god/__init__.py` | `100%` |
+| `playwright_god/_secrets.py` | `100%` |
 | `playwright_god/auth_templates.py` | `100%` |
 | `playwright_god/chunker.py` | `100%` |
-| `playwright_god/cli.py` | `97%` |
+| `playwright_god/cli.py` | `98%` |
+| `playwright_god/coverage.py` | `97%` |
 | `playwright_god/crawler.py` | `100%` |
 | `playwright_god/embedder.py` | `100%` |
 | `playwright_god/feature_map.py` | `100%` |
-| `playwright_god/generator.py` | `100%` |
+| `playwright_god/generator.py` | `99%` |
 | `playwright_god/indexer.py` | `100%` |
 | `playwright_god/memory_map.py` | `100%` |
-| `playwright_god/runner.py` | `94%` |
+| `playwright_god/refinement.py` | `100%` |
+| `playwright_god/runner.py` | `96%` |
 
 Notes:
 

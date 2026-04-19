@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -21,6 +22,10 @@ from typing import Literal, Mapping, Sequence
 # never logged or included in any RunResult field.
 _FORWARDED_ENV_PREFIXES: tuple[str, ...] = ("PLAYWRIGHT_",)
 _FORWARDED_ENV_NAMES: tuple[str, ...] = ("TEST_USERNAME", "TEST_PASSWORD")
+
+# TypeScript compile error pattern (Playwright surfaces these via stderr when
+# the spec fails to transpile, e.g. ``error TS2304: Cannot find name 'foo'``).
+_TS_COMPILE_ERROR_RE = re.compile(r"error\s+TS\d+:")
 
 # Status literals used across RunResult / TestCaseResult.
 RunStatus = Literal["passed", "failed", "error"]
@@ -66,6 +71,41 @@ class RunResult:
     report_dir: Path | None = None
     spec_path: Path | None = None
     coverage_raw: tuple[dict, ...] = ()
+
+    # Compiled once at module load below.
+    def is_actionable_failure(
+        self,
+    ) -> Literal["compile_failed", "runtime_failed", "passed", "error"]:
+        """Classify the run for downstream loops (refinement, spec-aware-update).
+
+        Returns one of:
+          - ``"passed"``: ``exit_code == 0`` and every reported test status is
+            ``"passed"`` or ``"skipped"``.
+          - ``"compile_failed"``: stderr matches a TypeScript compile-error
+            pattern AND no tests were reported as executed.
+          - ``"runtime_failed"``: at least one reported test has status
+            ``"failed"`` or ``"timedOut"``.
+          - ``"error"``: anything else (setup failure, missing reporter,
+            non-zero exit with no test results and no compile-error pattern).
+        """
+
+        # Pure ``passed`` first -- cheapest check, defines the happy path.
+        if (
+            self.status == "passed"
+            and self.exit_code == 0
+            and all(t.status in ("passed", "skipped") for t in self.tests)
+        ):
+            return "passed"
+
+        # Any reported runtime failure (assertion, timeout) wins over compile.
+        if any(t.status in ("failed", "timedOut") for t in self.tests):
+            return "runtime_failed"
+
+        # Compile failure: stderr matches TS compile-error pattern AND no tests ran.
+        if not self.tests and _TS_COMPILE_ERROR_RE.search(self.stderr or ""):
+            return "compile_failed"
+
+        return "error"
 
 
 def _which(cmd: str) -> str | None:

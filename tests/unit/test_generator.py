@@ -635,3 +635,116 @@ class TestCoverageDeltaEdgeCases:
         assert PlaywrightTestGenerator._format_uncovered_block(
             [("a", 1, 1, "x")], cap=0
         ) == ""
+
+
+# ---------------------------------------------------------------------------
+# iterative-refinement: addenda + byte-identity (Tasks 2.4 / 5.5)
+# ---------------------------------------------------------------------------
+
+
+class _PromptRecorder:
+    """LLM client that records the last prompt it was sent."""
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:  # noqa: ARG002
+        self.prompts.append(prompt)
+        return "// stub spec\n"
+
+
+def test_generate_no_addenda_is_byte_identical() -> None:
+    """The no-addenda call SHALL produce the same prompt as before this change."""
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client_a = _PromptRecorder()
+    client_b = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client_a).generate("login flow")
+    PlaywrightTestGenerator(llm_client=client_b).generate(
+        "login flow",
+        failure_excerpt=None,
+        coverage_delta=None,
+    )
+    assert client_a.prompts == client_b.prompts
+
+
+def test_generate_failure_excerpt_appends_section() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login flow",
+        failure_excerpt="TypeError at app.ts:42",
+    )
+    assert "Previous attempt failure:" in client.prompts[0]
+    assert "TypeError at app.ts:42" in client.prompts[0]
+
+
+def test_generate_coverage_delta_appends_section() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    delta = {
+        "newly_covered": ["src/a.py"],
+        "still_uncovered": ["src/b.py", "src/c.py"],
+    }
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login flow",
+        coverage_delta=delta,
+    )
+    p = client.prompts[0]
+    assert "Coverage delta since last attempt:" in p
+    assert "newly covered" in p.lower() or "+ src/a.py" in p
+    assert "src/b.py" in p
+
+
+def test_generate_empty_coverage_delta_emits_no_section() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login",
+        coverage_delta={"newly_covered": [], "still_uncovered": []},
+    )
+    assert "Coverage delta since last attempt:" not in client.prompts[0]
+
+
+def test_generate_failure_excerpt_truncated_at_2kb() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client = _PromptRecorder()
+    big = "X" * 5000
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login", failure_excerpt=big
+    )
+    p = client.prompts[0]
+    assert "(truncated)" in p
+    # The excerpt body should not exceed ~2KB inside the prompt.
+    body = p.split("Previous attempt failure:", 1)[1]
+    assert len(body.encode("utf-8")) < 2500
+
+
+def test_generate_blank_failure_excerpt_ignored() -> None:
+    from playwright_god.generator import PlaywrightTestGenerator
+
+    client_a = _PromptRecorder()
+    client_b = _PromptRecorder()
+    PlaywrightTestGenerator(llm_client=client_a).generate("login")
+    PlaywrightTestGenerator(llm_client=client_b).generate("login", failure_excerpt="   \n  ")
+    assert client_a.prompts == client_b.prompts
+
+
+def test_generate_coverage_delta_with_dataclass_object() -> None:
+    """Accept any object exposing newly_covered / still_uncovered attributes."""
+    from playwright_god.generator import PlaywrightTestGenerator
+    from playwright_god.refinement import CoverageDelta
+
+    client = _PromptRecorder()
+    delta = CoverageDelta(
+        newly_covered=("src/a.py",), still_uncovered=("src/b.py",), coverage_gain=0.1
+    )
+    PlaywrightTestGenerator(llm_client=client).generate(
+        "login", coverage_delta=delta
+    )
+    assert "src/a.py" in client.prompts[0]
+    assert "src/b.py" in client.prompts[0]

@@ -1684,3 +1684,275 @@ class TestCoveragePayloadForPlan:
         assert out["summary"]["files"] == 1
         # Default percent path: total=0 → 100.0
         assert out["files"][0]["percent"] == 100.0
+
+
+# ---------------------------------------------------------------------------
+# `refine` subcommand (iterative-refinement Task 5.7)
+# ---------------------------------------------------------------------------
+
+
+class TestRefineCommand:
+    def _patch(self, monkeypatch, tmp_path, *, outcomes=("passed",)):
+        """Install scripted generator + runner so the loop is hermetic."""
+        from click.testing import CliRunner
+        from playwright_god import cli as cli_mod
+        from playwright_god import refinement as ref_mod
+        from playwright_god.runner import RunResult, TestCaseResult
+
+        def _result_for(outcome: str) -> RunResult:
+            if outcome == "passed":
+                return RunResult(
+                    status="passed",
+                    duration_ms=1,
+                    tests=(TestCaseResult(title="t", status="passed", duration_ms=1),),
+                    exit_code=0,
+                    stdout="",
+                    stderr="",
+                )
+            if outcome == "compile_failed":
+                return RunResult(
+                    status="error",
+                    duration_ms=0,
+                    tests=(),
+                    exit_code=1,
+                    stdout="",
+                    stderr="src/x.spec.ts(1,2): error TS2304: nope",
+                )
+            return RunResult(
+                status="failed",
+                duration_ms=1,
+                tests=(
+                    TestCaseResult(
+                        title="t",
+                        status="failed",
+                        duration_ms=1,
+                        error_message="boom",
+                    ),
+                ),
+                exit_code=1,
+                stdout="",
+                stderr="",
+            )
+
+        results = [_result_for(o) for o in outcomes]
+
+        class _StubRunner:
+            def __init__(self, *a, **kw):
+                self._idx = 0
+
+            def run(self, spec_path):
+                idx = min(self._idx, len(results) - 1)
+                self._idx += 1
+                return results[idx]
+
+        class _StubGenerator:
+            def __init__(self, *a, **kw):
+                self._n = 0
+
+            def generate(self, description, **kwargs):
+                self._n += 1
+                return f"// attempt {self._n}\n"
+
+        class _StubIndexer:
+            def __init__(self, *a, **kw):
+                pass
+
+            def count(self):
+                return 0
+
+            def search(self, *a, **kw):
+                return []
+
+        monkeypatch.setattr(cli_mod, "PlaywrightRunner", _StubRunner)
+        monkeypatch.setattr(cli_mod, "PlaywrightTestGenerator", _StubGenerator)
+        monkeypatch.setattr(cli_mod, "RepositoryIndexer", _StubIndexer)
+        return CliRunner()
+
+    def test_refine_default_stops_on_first_pass_exit_zero(
+        self, tmp_path, monkeypatch
+    ):
+        from playwright_god.cli import cli
+
+        runner = self._patch(monkeypatch, tmp_path, outcomes=("passed",))
+        out = tmp_path / "spec.spec.ts"
+        result = runner.invoke(
+            cli,
+            [
+                "refine",
+                "login flow",
+                "-o",
+                str(out),
+                "--mock-embedder",
+                "--max-attempts",
+                "3",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        assert "1 attempt" in result.output
+
+    def test_refine_failure_returns_nonzero_exit(self, tmp_path, monkeypatch):
+        from playwright_god.cli import cli
+
+        runner = self._patch(
+            monkeypatch, tmp_path, outcomes=("runtime_failed",) * 3
+        )
+        out = tmp_path / "spec.spec.ts"
+        result = runner.invoke(
+            cli,
+            [
+                "refine",
+                "login",
+                "-o",
+                str(out),
+                "--mock-embedder",
+                "--max-attempts",
+                "3",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "3 attempt" in result.output
+
+    def test_refine_warns_when_max_attempts_above_5(self, tmp_path, monkeypatch):
+        from playwright_god.cli import cli
+
+        runner = self._patch(monkeypatch, tmp_path, outcomes=("passed",))
+        out = tmp_path / "spec.spec.ts"
+        result = runner.invoke(
+            cli,
+            [
+                "refine",
+                "x",
+                "-o",
+                str(out),
+                "--mock-embedder",
+                "--max-attempts",
+                "7",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "high attempt cap" in result.output
+
+    def test_refine_rejects_max_attempts_above_hard_cap(
+        self, tmp_path, monkeypatch
+    ):
+        from playwright_god.cli import cli
+
+        runner = self._patch(monkeypatch, tmp_path, outcomes=("passed",))
+        out = tmp_path / "spec.spec.ts"
+        result = runner.invoke(
+            cli,
+            [
+                "refine",
+                "x",
+                "-o",
+                str(out),
+                "--mock-embedder",
+                "--max-attempts",
+                "12",
+            ],
+        )
+        assert result.exit_code == 2
+        assert "hard cap" in result.output
+
+    def test_refine_writes_audit_log_when_artifact_dir_set(
+        self, tmp_path, monkeypatch
+    ):
+        from playwright_god.cli import cli
+
+        runner = self._patch(
+            monkeypatch, tmp_path, outcomes=("runtime_failed", "passed")
+        )
+        out = tmp_path / "spec.spec.ts"
+        artifacts = tmp_path / "artifacts"
+        result = runner.invoke(
+            cli,
+            [
+                "refine",
+                "x",
+                "-o",
+                str(out),
+                "--mock-embedder",
+                "--max-attempts",
+                "2",
+                "--artifact-dir",
+                str(artifacts),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        # Find the JSONL log under artifacts/runs/<ts>/refinement_log.jsonl
+        logs = list(artifacts.glob("runs/*/refinement_log.jsonl"))
+        assert logs, "expected a refinement audit log to be written"
+        lines = logs[0].read_text().splitlines()
+        assert len(lines) == 2
+
+    def test_refine_help_lists_flags(self):
+        from click.testing import CliRunner
+        from playwright_god.cli import cli
+
+        result = CliRunner().invoke(cli, ["refine", "--help"])
+        assert result.exit_code == 0
+        for flag in ("--max-attempts", "--stop-on", "--coverage-target", "--retry-on-flake"):
+            assert flag in result.output
+
+
+    def test_refine_provider_branches(self, tmp_path, monkeypatch):
+        """Cover openai/anthropic/gemini/ollama provider construction paths."""
+        from unittest.mock import patch
+        from playwright_god.cli import cli
+        from click.testing import CliRunner
+
+        for prov, mock_target in [
+            ("openai", "playwright_god.cli.OpenAIClient"),
+            ("anthropic", "playwright_god.cli.AnthropicClient"),
+            ("gemini", "playwright_god.cli.GeminiClient"),
+            ("ollama", "playwright_god.cli.OllamaClient"),
+        ]:
+            runner = self._patch(monkeypatch, tmp_path, outcomes=("passed",))
+            out = tmp_path / f"spec_{prov}.spec.ts"
+            with patch(mock_target) as MockClient:
+                MockClient.return_value = object()  # not actually used by stub generator
+                result = runner.invoke(
+                    cli,
+                    [
+                        "refine",
+                        "x",
+                        "-o",
+                        str(out),
+                        "--mock-embedder",
+                        "--max-attempts",
+                        "1",
+                        "--provider",
+                        prov,
+                        "--api-key",
+                        "fake",
+                    ],
+                )
+            assert result.exit_code == 0, (prov, result.output)
+            MockClient.assert_called_once()
+
+    def test_refine_warns_on_invalid_memory_map(self, tmp_path, monkeypatch):
+        """Memory-map load failure path is warned-on, not fatal."""
+        from playwright_god.cli import cli
+
+        runner = self._patch(monkeypatch, tmp_path, outcomes=("passed",))
+        out = tmp_path / "s.spec.ts"
+        bad_map = tmp_path / "bogus.json"
+        bad_map.write_text("not json at all{")
+        result = runner.invoke(
+            cli,
+            [
+                "refine",
+                "x",
+                "-o",
+                str(out),
+                "--mock-embedder",
+                "--max-attempts",
+                "1",
+                "--memory-map",
+                str(bad_map),
+            ],
+        )
+        # Should still succeed; warning is on stderr (mixed into result.output by click runner).
+        assert result.exit_code == 0, result.output
+        assert "could not load --memory-map" in result.output

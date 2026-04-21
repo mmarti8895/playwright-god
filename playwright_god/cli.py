@@ -60,7 +60,10 @@ def _resolve_provider_config(
     resolved_provider = provider
     if resolved_provider is None:
         env_provider = os.environ.get("PLAYWRIGHT_GOD_PROVIDER", "").strip().lower()
-        if env_provider in ("openai", "anthropic", "gemini", "ollama", "template", "playwright-cli"):
+        # Only accept providers here that are supported by all commands using this
+        # shared resolver. `playwright-cli` is command-specific and must not be
+        # enabled globally via environment configuration.
+        if env_provider in ("openai", "anthropic", "gemini", "ollama", "template"):
             resolved_provider = env_provider
 
     # If still no provider, auto-detect from API keys

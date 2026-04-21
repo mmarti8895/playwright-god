@@ -24,6 +24,8 @@ from .generator import (
     GeminiClient,
     OllamaClient,
     OpenAIClient,
+    PlaywrightCLIClient,
+    PlaywrightCLIError,
     PlaywrightTestGenerator,
     TemplateLLMClient,
 )
@@ -58,6 +60,9 @@ def _resolve_provider_config(
     resolved_provider = provider
     if resolved_provider is None:
         env_provider = os.environ.get("PLAYWRIGHT_GOD_PROVIDER", "").strip().lower()
+        # Only accept providers here that are supported by all commands using this
+        # shared resolver. `playwright-cli` is command-specific and must not be
+        # enabled globally via environment configuration.
         if env_provider in ("openai", "anthropic", "gemini", "ollama", "template"):
             resolved_provider = env_provider
 
@@ -279,14 +284,15 @@ def index(
     "--provider",
     default=None,
     type=click.Choice(
-        ["openai", "anthropic", "gemini", "ollama", "template"],
+        ["openai", "anthropic", "gemini", "ollama", "template", "playwright-cli"],
         case_sensitive=False,
     ),
     help=(
         "LLM provider to use. Auto-detected from environment variables when "
         "not set (OPENAI_API_KEY -> openai, ANTHROPIC_API_KEY -> anthropic, "
         "GOOGLE_API_KEY -> gemini). Falls back to the offline template "
-        "generator when no key is found."
+        "generator when no key is found. Use 'playwright-cli' to record "
+        "tests interactively with `npx playwright codegen`."
     ),
 )
 @click.option(
@@ -299,6 +305,26 @@ def index(
     default="http://localhost:11434",
     show_default=True,
     help="Base URL of the Ollama server (used only when --provider=ollama).",
+)
+@click.option(
+    "--playwright-cli-url",
+    default=None,
+    help=(
+        "Base URL passed to `npx playwright codegen` when "
+        "--provider=playwright-cli. Overrides any URL found in the prompt "
+        "or memory map. Example: http://localhost:3000"
+    ),
+)
+@click.option(
+    "--playwright-cli-timeout",
+    default=PlaywrightCLIClient.DEFAULT_TIMEOUT,
+    show_default=True,
+    type=int,
+    help=(
+        "Seconds to wait for the Playwright Inspector window to be closed "
+        "when --provider=playwright-cli. "
+        "Increase for long recording sessions."
+    ),
 )
 @click.option(
     "--auth-type",
@@ -434,6 +460,8 @@ def generate(
     provider: str | None,
     api_key: str | None,
     ollama_url: str,
+    playwright_cli_url: str | None,
+    playwright_cli_timeout: int,
     auth_type: str | None,
     auth_config: str | None,
     env_file: str | None,
@@ -475,7 +503,7 @@ def generate(
         provider, model, api_key, ollama_url
     )
 
-    llm_client: OpenAIClient | AnthropicClient | GeminiClient | OllamaClient | TemplateLLMClient
+    llm_client: OpenAIClient | AnthropicClient | GeminiClient | OllamaClient | TemplateLLMClient | PlaywrightCLIClient
     if provider == "openai":
         resolved_model = model or "gpt-4o"
         click.echo(f"Using OpenAI model: {resolved_model}", err=True)
@@ -501,6 +529,17 @@ def generate(
         resolved_model = model or "llama3"
         click.echo(f"Using Ollama model: {resolved_model} at {ollama_url}", err=True)
         llm_client = OllamaClient(model=resolved_model, base_url=ollama_url)
+    elif provider == "playwright-cli":
+        click.echo(
+            "Using playwright-cli backend (npx playwright codegen). "
+            "A browser window will open — record your interactions, then close "
+            "the Playwright Inspector to capture the spec.",
+            err=True,
+        )
+        llm_client = PlaywrightCLIClient(
+            url=playwright_cli_url,
+            timeout=playwright_cli_timeout,
+        )
     else:
         click.echo(
             "No LLM provider detected - using offline template generator.",
@@ -580,14 +619,18 @@ def generate(
     if auth_type:
         click.echo(f"Auth type: {auth_type}", err=True)
 
-    test_code = generator.generate(
-        description,
-        extra_context=extra_context,
-        auth_type=auth_type,
-        redact_secrets=redact_secrets,
-        uncovered_excerpts=uncovered_excerpts,
-        uncovered_cap=coverage_cap,
-    )
+    try:
+        test_code = generator.generate(
+            description,
+            extra_context=extra_context,
+            auth_type=auth_type,
+            redact_secrets=redact_secrets,
+            uncovered_excerpts=uncovered_excerpts,
+            uncovered_cap=coverage_cap,
+        )
+    except PlaywrightCLIError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
 
     if output:
         with open(output, "w", encoding="utf-8") as fh:

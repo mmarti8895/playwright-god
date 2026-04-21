@@ -2627,3 +2627,179 @@ class TestPrintPlanDetails:
 
         assert "Review" in captured.out
         assert "... and 5 more" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# playwright-cli provider
+# ---------------------------------------------------------------------------
+
+
+class TestPlaywrightCLIProvider:
+    """Tests for --provider playwright-cli wiring in the generate command."""
+
+    def _make_mock_indexer(self, MockEmb, MockIdx):
+        mock_emb = MagicMock()
+        MockEmb.return_value = mock_emb
+        mock_indexer = MagicMock()
+        mock_indexer.count.return_value = 5
+        mock_indexer.search.return_value = []
+        MockIdx.return_value = mock_indexer
+
+    def test_generate_help_lists_playwright_cli_provider(self, runner):
+        result = runner.invoke(cli, ["generate", "--help"])
+        assert result.exit_code == 0
+        assert "playwright-cli" in result.output
+
+    def test_generate_playwright_cli_provider_constructs_client(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightCLIClient") as MockCLI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.return_value = 'import { test, expect } from "@playwright/test";'
+            MockCLI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                ["generate", "login flow", "-d", persist, "--provider", "playwright-cli"],
+            )
+
+        assert result.exit_code == 0
+        MockCLI.assert_called_once()
+
+    def test_generate_playwright_cli_passes_url_option(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightCLIClient") as MockCLI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.return_value = 'import { test, expect } from "@playwright/test";'
+            MockCLI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "login flow", "-d", persist,
+                    "--provider", "playwright-cli",
+                    "--playwright-cli-url", "http://localhost:3000",
+                ],
+            )
+
+        assert result.exit_code == 0
+        MockCLI.assert_called_once_with(
+            url="http://localhost:3000",
+            timeout=300,
+        )
+
+    def test_generate_playwright_cli_passes_timeout_option(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightCLIClient") as MockCLI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.return_value = 'import { test, expect } from "@playwright/test";'
+            MockCLI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "login flow", "-d", persist,
+                    "--provider", "playwright-cli",
+                    "--playwright-cli-timeout", "120",
+                ],
+            )
+
+        assert result.exit_code == 0
+        call_kwargs = MockCLI.call_args[1]
+        assert call_kwargs["timeout"] == 120
+
+    def test_generate_playwright_cli_error_exits_with_code_2(self, runner, tmp_path):
+        from playwright_god.generator import PlaywrightCLIError
+
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightCLIClient") as MockCLI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = PlaywrightCLIError("npx not found on PATH")
+            MockCLI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                ["generate", "login flow", "-d", persist, "--provider", "playwright-cli"],
+            )
+
+        assert result.exit_code == 2
+        assert "npx not found on PATH" in result.output
+
+    def test_generate_playwright_cli_error_message_shown_on_stderr(self, runner, tmp_path):
+        from playwright_god.generator import PlaywrightCLIError
+
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightCLIClient") as MockCLI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = PlaywrightCLIError("timed out after 300s")
+            MockCLI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                ["generate", "login flow", "-d", persist, "--provider", "playwright-cli"],
+            )
+
+        assert "timed out after 300s" in result.output
+
+    def test_playwright_cli_provider_respected_from_env_var(self, runner, tmp_path, monkeypatch):
+        persist = str(tmp_path / "idx")
+        monkeypatch.setenv("PLAYWRIGHT_GOD_PROVIDER", "playwright-cli")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightCLIClient") as MockCLI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.return_value = 'import { test, expect } from "@playwright/test";'
+            MockCLI.return_value = mock_client
+
+            result = runner.invoke(cli, ["generate", "login flow", "-d", persist])
+
+        assert result.exit_code == 0
+        MockCLI.assert_called_once()
+
+    def test_playwright_cli_url_defaults_to_none_when_not_provided(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightCLIClient") as MockCLI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.return_value = 'import { test, expect } from "@playwright/test";'
+            MockCLI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                ["generate", "login flow", "-d", persist, "--provider", "playwright-cli"],
+            )
+
+        assert result.exit_code == 0
+        call_kwargs = MockCLI.call_args[1]
+        assert call_kwargs["url"] is None

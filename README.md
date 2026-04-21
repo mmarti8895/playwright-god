@@ -125,10 +125,34 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 | `-o`, `--output` | stdout | Write test to this file (must be a file path, not a directory) |
 | `--n-context` | `10` | Number of context chunks to retrieve |
 | `-m`, `--memory-map` | *(none)* | Inject memory map context into the prompt |
-| `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template` |
+| `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template`, `playwright-cli` |
 | `--model` | provider default | Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `gemini-1.5-pro`, `llama3`) |
 | `--api-key` | env var | API key (overrides the environment variable) |
 | `--ollama-url` | `http://localhost:11434` | Ollama server URL (used only with `--provider=ollama`) |
+| `--playwright-cli-url` | *(extract from context)* | Base URL passed to `npx playwright codegen` (used only with `--provider=playwright-cli`) |
+| `--playwright-cli-timeout` | `300` | Seconds to wait for the Playwright Inspector window to close (used only with `--provider=playwright-cli`) |
+
+#### Using the `playwright-cli` provider
+
+The `playwright-cli` provider opens a browser via `npx playwright codegen`, records your
+interactions, and captures the resulting TypeScript spec when you close the Playwright
+Inspector window.
+
+```bash
+playwright-god generate "user login flow" \
+    -m .idx/memory_map.json \
+    --provider playwright-cli \
+    --playwright-cli-url http://localhost:3000 \
+    -o tests/login.spec.ts
+```
+
+**Prerequisites for `playwright-cli`:**
+- Node.js 18+ with `npx` on `PATH`
+- Playwright browsers installed: `npx playwright install`
+
+If no URL is provided (via `--playwright-cli-url` or in the memory map context), the
+provider falls back to the offline template generator.
+
 `plan`
 - turns a saved memory map or index inventory into a Markdown test plan
 - groups scenarios by inferred feature area when that metadata is available

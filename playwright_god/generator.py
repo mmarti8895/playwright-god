@@ -462,7 +462,13 @@ class PlaywrightCLIClient(LLMClient):
         url: str | None = None,
     ) -> None:
         self.executable = executable
-        self.timeout = int(timeout)
+        timeout = int(timeout)
+        if timeout < 1:
+            raise PlaywrightCLIError(
+                "Invalid Playwright CLI timeout: expected an integer >= 1 second. "
+                "Use --playwright-cli-timeout with a positive value."
+            )
+        self.timeout = timeout
         self.url = url
         self._fallback = TemplateLLMClient()
 

@@ -2694,7 +2694,7 @@ class TestPlaywrightCLIProvider:
         assert result.exit_code == 0
         MockCLI.assert_called_once_with(
             url="http://localhost:3000",
-            timeout=pytest.approx(300, abs=1),
+            timeout=300,
         )
 
     def test_generate_playwright_cli_passes_timeout_option(self, runner, tmp_path):

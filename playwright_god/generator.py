@@ -469,6 +469,11 @@ class PlaywrightCLIClient(LLMClient):
     def complete(self, prompt: str, system_prompt: str | None = None) -> str:  # noqa: ARG002
         """Run ``playwright codegen`` and return the recorded TypeScript spec.
 
+        The *system_prompt* parameter is accepted for interface compatibility
+        with other ``LLMClient`` backends but is intentionally unused here —
+        ``npx playwright codegen`` does not accept a system prompt; it records
+        actual browser interactions instead.
+
         Falls back to :class:`TemplateLLMClient` when no URL is available or
         when codegen exits cleanly but writes no output.
 

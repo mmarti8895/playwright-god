@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,6 +14,8 @@ from playwright_god.generator import (
     LLMClient,
     OllamaClient,
     OpenAIClient,
+    PlaywrightCLIClient,
+    PlaywrightCLIError,
     PlaywrightTestGenerator,
     TemplateLLMClient,
 )
@@ -918,3 +921,300 @@ def test_format_flow_graph_subgraph_empty_graph_returns_empty():
     from playwright_god.generator import PlaywrightTestGenerator
 
     assert PlaywrightTestGenerator._format_flow_graph_subgraph(FlowGraph(), "x") == ""
+
+
+# ---------------------------------------------------------------------------
+# PlaywrightCLIClient
+# ---------------------------------------------------------------------------
+
+
+class TestPlaywrightCLIClient:
+    """Tests for the PlaywrightCLIClient generation backend."""
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _mock_proc(self, returncode: int = 0, stderr: str = "") -> MagicMock:
+        proc = MagicMock()
+        proc.communicate.return_value = ("", stderr)
+        proc.returncode = returncode
+        return proc
+
+    def _patch_which_found(self):
+        return patch("playwright_god.generator.shutil.which", return_value="/usr/bin/npx")
+
+    def _patch_which_missing(self):
+        return patch("playwright_god.generator.shutil.which", return_value=None)
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
+    def test_default_executable_and_timeout(self):
+        client = PlaywrightCLIClient()
+        assert client.executable == "npx"
+        assert client.timeout == PlaywrightCLIClient.DEFAULT_TIMEOUT
+        assert client.url is None
+
+    def test_custom_params_stored(self):
+        client = PlaywrightCLIClient(executable="playwright", timeout=60, url="http://localhost")
+        assert client.executable == "playwright"
+        assert client.timeout == 60
+        assert client.url == "http://localhost"
+
+    def test_fallback_is_template_client(self):
+        client = PlaywrightCLIClient()
+        assert isinstance(client._fallback, TemplateLLMClient)
+
+    # ------------------------------------------------------------------
+    # Executable validation
+    # ------------------------------------------------------------------
+
+    def test_raises_playwright_cli_error_when_executable_missing(self):
+        client = PlaywrightCLIClient()
+        with self._patch_which_missing():
+            with pytest.raises(PlaywrightCLIError, match="not found on PATH"):
+                client.complete("Description: test login")
+
+    def test_error_message_mentions_executable_name(self):
+        client = PlaywrightCLIClient(executable="my-npx")
+        with patch("playwright_god.generator.shutil.which", return_value=None):
+            with pytest.raises(PlaywrightCLIError, match="my-npx"):
+                client.complete("Description: test")
+
+    # ------------------------------------------------------------------
+    # URL resolution
+    # ------------------------------------------------------------------
+
+    def test_falls_back_to_template_when_no_url_in_prompt(self):
+        client = PlaywrightCLIClient()
+        with self._patch_which_found():
+            result = client.complete("Description: test something without a URL")
+        assert 'import { test, expect } from "@playwright/test";' in result
+
+    def test_extracts_url_from_prompt(self, tmp_path):
+        spec_content = 'import { test, expect } from "@playwright/test";'
+        client = PlaywrightCLIClient()
+        captured_cmd: list[str] = []
+
+        def fake_popen(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            # Write spec to the actual --output path the client will read.
+            out_idx = cmd.index("--output")
+            with open(cmd[out_idx + 1], "w", encoding="utf-8") as fh:
+                fh.write(spec_content)
+            return self._mock_proc()
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", side_effect=fake_popen),
+        ):
+            result = client.complete("Description: test\nhttp://localhost:3000/app")
+
+        assert "http://localhost:3000/app" in captured_cmd
+        assert result == spec_content
+
+    def test_explicit_url_overrides_prompt_url(self, tmp_path):
+        explicit_url = "http://explicit-host.com"
+        spec_content = 'import { test, expect } from "@playwright/test";'
+        client = PlaywrightCLIClient(url=explicit_url)
+        captured_cmd: list[str] = []
+
+        def fake_popen(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            out_idx = cmd.index("--output")
+            with open(cmd[out_idx + 1], "w", encoding="utf-8") as fh:
+                fh.write(spec_content)
+            return self._mock_proc()
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", side_effect=fake_popen),
+        ):
+            result = client.complete("Description: test\nhttp://localhost:3000")
+
+        assert explicit_url in captured_cmd
+        assert "http://localhost:3000" not in [a for a in captured_cmd if a != "--output"]
+        assert result == spec_content
+
+    # ------------------------------------------------------------------
+    # Subprocess outcome handling
+    # ------------------------------------------------------------------
+
+    def test_returns_recorded_code_on_success(self, tmp_path):
+        spec_content = (
+            'import { test, expect } from "@playwright/test";\n'
+            'test("login", async ({ page }) => {\n'
+            '  await page.goto("http://localhost:3000");\n'
+            "});\n"
+        )
+        client = PlaywrightCLIClient(url="http://localhost:3000")
+
+        def fake_popen(cmd, **kwargs):
+            out_idx = cmd.index("--output")
+            out_path = cmd[out_idx + 1]
+            with open(out_path, "w", encoding="utf-8") as fh:
+                fh.write(spec_content)
+            return self._mock_proc(returncode=0)
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", side_effect=fake_popen),
+        ):
+            result = client.complete("Description: login test")
+
+        assert result == spec_content
+
+    def test_raises_on_non_zero_exit_with_empty_output(self, tmp_path):
+        client = PlaywrightCLIClient(url="http://localhost:3000")
+        proc = self._mock_proc(returncode=1, stderr="Could not launch browser")
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", return_value=proc),
+        ):
+            with pytest.raises(PlaywrightCLIError, match="exited with code 1"):
+                client.complete("Description: test")
+
+    def test_error_message_includes_stderr(self, tmp_path):
+        client = PlaywrightCLIClient(url="http://localhost:3000")
+        proc = self._mock_proc(returncode=1, stderr="Browser launch failed")
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", return_value=proc),
+        ):
+            with pytest.raises(PlaywrightCLIError, match="Browser launch failed"):
+                client.complete("Description: test")
+
+    def test_falls_back_to_template_on_zero_exit_with_empty_output(self, tmp_path):
+        client = PlaywrightCLIClient(url="http://localhost:3000")
+        # Popen succeeds but writes nothing to the output file.
+        proc = self._mock_proc(returncode=0)
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", return_value=proc),
+        ):
+            result = client.complete("Description: login flow")
+
+        assert 'import { test, expect } from "@playwright/test";' in result
+
+    def test_raises_playwright_cli_error_on_timeout(self):
+        client = PlaywrightCLIClient(url="http://localhost:3000", timeout=5)
+        proc = MagicMock()
+        proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd=["npx"], timeout=5),
+            ("", ""),  # second communicate() after kill()
+        ]
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", return_value=proc),
+        ):
+            with pytest.raises(PlaywrightCLIError, match="timed out after 5s"):
+                client.complete("Description: test")
+
+    def test_timeout_error_kills_process(self):
+        client = PlaywrightCLIClient(url="http://localhost:3000", timeout=5)
+        proc = MagicMock()
+        proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd=["npx"], timeout=5),
+            ("", ""),  # second communicate() after kill()
+        ]
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", return_value=proc),
+            pytest.raises(PlaywrightCLIError),
+        ):
+            client.complete("Description: test")
+
+        proc.kill.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # Command construction
+    # ------------------------------------------------------------------
+
+    def test_command_includes_npx_playwright_codegen(self, tmp_path):
+        spec_content = 'import { test, expect } from "@playwright/test";'
+        client = PlaywrightCLIClient(url="http://localhost:3000")
+        captured_cmd: list[str] = []
+
+        def fake_popen(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            out_idx = cmd.index("--output")
+            out_path = cmd[out_idx + 1]
+            with open(out_path, "w", encoding="utf-8") as fh:
+                fh.write(spec_content)
+            return self._mock_proc()
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.subprocess.Popen", side_effect=fake_popen),
+        ):
+            client.complete("Description: test")
+
+        assert captured_cmd[0] == "npx"
+        assert "playwright" in captured_cmd
+        assert "codegen" in captured_cmd
+        assert "--output" in captured_cmd
+        assert "http://localhost:3000" in captured_cmd
+
+    def test_temp_file_is_cleaned_up_after_success(self, tmp_path):
+        import os
+
+        spec_content = 'import { test, expect } from "@playwright/test";'
+        client = PlaywrightCLIClient(url="http://localhost:3000")
+        created_paths: list[str] = []
+
+        original_mkstemp = __import__("tempfile").mkstemp
+
+        def fake_mkstemp(**kwargs):
+            fd, path = original_mkstemp(**kwargs)
+            created_paths.append(path)
+            return fd, path
+
+        def fake_popen(cmd, **kwargs):
+            out_idx = cmd.index("--output")
+            out_path = cmd[out_idx + 1]
+            with open(out_path, "w", encoding="utf-8") as fh:
+                fh.write(spec_content)
+            return self._mock_proc()
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.tempfile.mkstemp", side_effect=fake_mkstemp),
+            patch("playwright_god.generator.subprocess.Popen", side_effect=fake_popen),
+        ):
+            client.complete("Description: test")
+
+        for path in created_paths:
+            assert not os.path.exists(path), f"Temp file {path} was not cleaned up"
+
+    def test_temp_file_is_cleaned_up_after_error(self, tmp_path):
+        import os
+
+        client = PlaywrightCLIClient(url="http://localhost:3000")
+        created_paths: list[str] = []
+
+        original_mkstemp = __import__("tempfile").mkstemp
+
+        def fake_mkstemp(**kwargs):
+            fd, path = original_mkstemp(**kwargs)
+            created_paths.append(path)
+            return fd, path
+
+        proc = self._mock_proc(returncode=1, stderr="error")
+
+        with (
+            self._patch_which_found(),
+            patch("playwright_god.generator.tempfile.mkstemp", side_effect=fake_mkstemp),
+            patch("playwright_god.generator.subprocess.Popen", return_value=proc),
+            pytest.raises(PlaywrightCLIError),
+        ):
+            client.complete("Description: test")
+
+        for path in created_paths:
+            assert not os.path.exists(path), f"Temp file {path} was not cleaned up"

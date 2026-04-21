@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import textwrap
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence
@@ -410,6 +413,133 @@ class TemplateLLMClient(LLMClient):
     def _is_logging_description(cls, text: str) -> bool:
         lower = text.lower()
         return any(keyword in lower for keyword in cls._LOG_KEYWORDS)
+
+
+class PlaywrightCLIError(RuntimeError):
+    """Raised when the ``playwright-cli`` backend fails to produce a spec.
+
+    Always carries an actionable remediation message.
+    """
+
+
+class PlaywrightCLIClient(LLMClient):
+    """Drives ``npx playwright codegen`` to capture a browser-recorded TypeScript spec.
+
+    When invoked, it runs ``npx playwright codegen --output <tmp_file> <url>``
+    and blocks until the Playwright Inspector window is closed (or the optional
+    *timeout* is exceeded).  The recorded TypeScript code is returned as the
+    completion result.
+
+    If no URL can be resolved (neither an explicit *url* nor one extracted from
+    the prompt), the client transparently falls back to
+    :class:`TemplateLLMClient`.
+
+    The memory-map / RAG context injected by :class:`PlaywrightTestGenerator`
+    is still assembled in full and passed as *prompt*.  This client uses that
+    context to locate the target URL; the recorded browser interactions then
+    replace the LLM completion step.
+
+    Parameters
+    ----------
+    executable:
+        Path or name of the ``npx`` binary.  Defaults to ``"npx"`` so that
+        whatever ``npx`` is on ``PATH`` is used.
+    timeout:
+        Seconds to wait for the user to finish recording before killing the
+        browser and raising :class:`PlaywrightCLIError`.  Defaults to 300 s
+        (5 minutes).
+    url:
+        Optional explicit base URL passed to ``playwright codegen``.  When
+        provided, it overrides any URL found in the prompt.
+    """
+
+    DEFAULT_TIMEOUT: int = 300
+
+    def __init__(
+        self,
+        executable: str = "npx",
+        timeout: int = DEFAULT_TIMEOUT,
+        url: str | None = None,
+    ) -> None:
+        self.executable = executable
+        self.timeout = int(timeout)
+        self.url = url
+        self._fallback = TemplateLLMClient()
+
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:  # noqa: ARG002
+        """Run ``playwright codegen`` and return the recorded TypeScript spec.
+
+        Falls back to :class:`TemplateLLMClient` when no URL is available or
+        when codegen exits cleanly but writes no output.
+
+        Raises
+        ------
+        PlaywrightCLIError
+            When the executable is not found, the process times out, or
+            codegen exits with a non-zero code alongside empty output.
+        """
+        if shutil.which(self.executable) is None:
+            raise PlaywrightCLIError(
+                f"{self.executable!r} not found on PATH. "
+                "Install Node.js 18+ (https://nodejs.org) so that npx is available, "
+                "then run `npx playwright install` to install Playwright browsers."
+            )
+
+        # Resolve the target URL: explicit override > first URL found in prompt.
+        url = self.url
+        if url is None:
+            found = re.findall(r"https?://[^\s\"'<>]+", prompt)
+            url = found[0] if found else None
+
+        if url is None:
+            # No URL available — fall back to the offline template generator.
+            return self._fallback.complete(prompt)
+
+        # Create a temp file for the generated spec; playwright codegen overwrites it.
+        fd, tmp_path = tempfile.mkstemp(suffix=".spec.ts", prefix="pg_codegen_")
+        os.close(fd)
+
+        try:
+            proc = subprocess.Popen(
+                [self.executable, "playwright", "codegen", "--output", tmp_path, url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                _stdout, stderr = proc.communicate(timeout=self.timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                raise PlaywrightCLIError(
+                    f"playwright codegen timed out after {self.timeout}s against {url!r}. "
+                    "Close the Playwright Inspector window before the timeout or increase "
+                    "--playwright-cli-timeout."
+                )
+
+            try:
+                with open(tmp_path, "r", encoding="utf-8") as fh:
+                    code = fh.read()
+            except OSError:
+                code = ""
+
+            if not code.strip():
+                if proc.returncode != 0:
+                    raise PlaywrightCLIError(
+                        f"playwright codegen exited with code {proc.returncode} "
+                        f"for {url!r}. "
+                        f"stderr: {stderr[:500] if stderr else '(none)'}"
+                    )
+                # Codegen ran but wrote nothing (e.g. user dismissed without recording).
+                return self._fallback.complete(prompt)
+
+            return code
+
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 class PlaywrightTestGenerator:

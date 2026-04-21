@@ -176,6 +176,16 @@ def test_relpath_handles_outside_root(tmp_path):
     assert out == "/tmp/elsewhere"
 
 
+def test_extractor_capabilities_include_metadata():
+    from playwright_god.extractors import extractor_capabilities
+
+    caps = extractor_capabilities()
+    assert any(cap["name"] == "python-web" for cap in caps)
+    js_cap = next(cap for cap in caps if cap["name"] == "js-ts-ui")
+    assert "typescript" in js_cap["languages"]
+    assert "react" in js_cap["frameworks"]
+
+
 # ---------------------------------------------------------------------------
 # Edge cases for full coverage
 # ---------------------------------------------------------------------------

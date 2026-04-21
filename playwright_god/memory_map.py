@@ -21,6 +21,7 @@ from typing import Sequence
 
 from .chunker import Chunk
 from .feature_map import RepositoryFeatureMap
+from .repo_profile import RepoProfile
 
 
 # ---------------------------------------------------------------------------
@@ -31,6 +32,7 @@ from .feature_map import RepositoryFeatureMap
 def build_memory_map(
     chunks: Sequence[Chunk],
     repository_feature_map: RepositoryFeatureMap | dict | None = None,
+    repo_profile: RepoProfile | dict | None = None,
 ) -> dict:
     """Build a memory map dict from a sequence of :class:`~playwright_god.chunker.Chunk` objects.
 
@@ -100,6 +102,8 @@ def build_memory_map(
     }
     if repository_feature_map is not None:
         memory_map.update(_feature_map_payload(repository_feature_map))
+    if repo_profile is not None:
+        memory_map.update(_repo_profile_payload(repo_profile))
     return memory_map
 
 
@@ -142,6 +146,14 @@ def load_memory_map(path: str) -> dict:
             )
         data.setdefault("coverage", None)
         data.setdefault("flow_graph", None)
+        data.setdefault("repo_profile", None)
+        data.setdefault("frameworks", [])
+        data.setdefault("runtime_targets", [])
+        data.setdefault("startup_candidates", [])
+        data.setdefault("environment_profile", {})
+        data.setdefault("auth_profile", {})
+        data.setdefault("bootstrap_steps", [])
+        data.setdefault("state_recipes", [])
     return data
 
 
@@ -168,6 +180,27 @@ def with_flow_graph(memory_map: dict, flow_graph) -> dict:
     else:  # pragma: no cover — defensive
         raise TypeError(f"unsupported flow_graph type: {type(flow_graph)!r}")
     out["flow_graph"] = payload
+    return out
+
+
+def with_repo_profile(memory_map: dict, repo_profile: RepoProfile | dict | None) -> dict:
+    """Return a copy of *memory_map* annotated with repository profile metadata."""
+
+    out = dict(memory_map)
+    current = str(out.get("schema_version", "2.0"))
+    if not current.startswith("2.") or current < "2.3":
+        out["schema_version"] = "2.3"
+    if repo_profile is None:
+        out["repo_profile"] = None
+        out["frameworks"] = []
+        out["runtime_targets"] = []
+        out["startup_candidates"] = []
+        out["environment_profile"] = {}
+        out["auth_profile"] = {}
+        out["bootstrap_steps"] = []
+        out["state_recipes"] = []
+        return out
+    out.update(_repo_profile_payload(repo_profile))
     return out
 
 
@@ -243,6 +276,10 @@ def format_memory_map_for_prompt(memory_map: dict) -> str:
     if feature_lines:
         lines.extend(["", *feature_lines])
 
+    repo_profile_lines = _format_repo_profile_sections(memory_map)
+    if repo_profile_lines:
+        lines.extend(["", *repo_profile_lines])
+
     return "\n".join(lines)
 
 
@@ -257,6 +294,24 @@ def _feature_map_payload(repository_feature_map: RepositoryFeatureMap | dict) ->
         "correlations": payload.get("correlations", []),
         "test_opportunities": payload.get("test_opportunities", []),
         "source_root": payload.get("source_root", "."),
+    }
+
+
+def _repo_profile_payload(repo_profile: RepoProfile | dict) -> dict[str, object]:
+    if isinstance(repo_profile, RepoProfile):
+        payload = repo_profile.to_dict()
+    else:
+        payload = dict(repo_profile)
+    return {
+        "schema_version": payload.get("schema_version", "2.3"),
+        "repo_profile": payload,
+        "frameworks": payload.get("frameworks", []),
+        "runtime_targets": payload.get("runtime_targets", []),
+        "startup_candidates": payload.get("startup_candidates", []),
+        "environment_profile": payload.get("environment_profile", {}),
+        "auth_profile": payload.get("auth_profile", {}),
+        "bootstrap_steps": payload.get("bootstrap_steps", []),
+        "state_recipes": payload.get("state_recipes", []),
     }
 
 
@@ -379,3 +434,48 @@ def _format_feature_sections(memory_map: dict) -> list[str]:
             feature_lines.append(f"{feature_id}: {title} [{confidence}]")
 
     return feature_lines
+
+
+def _format_repo_profile_sections(memory_map: dict) -> list[str]:
+    lines: list[str] = []
+    profile = memory_map.get("repo_profile")
+    if not isinstance(profile, dict):
+        return lines
+
+    lines.extend(["Repository profile", "------------------"])
+    archetype = profile.get("archetype", "unknown")
+    confidence = profile.get("confidence", "?")
+    frameworks = profile.get("frameworks", [])
+    lines.append(f"Archetype: {archetype} [{confidence}]")
+    if isinstance(frameworks, list) and frameworks:
+        lines.append("Frameworks: " + ", ".join(str(item) for item in frameworks[:8]))
+
+    startup_candidates = profile.get("startup_candidates", [])
+    if isinstance(startup_candidates, list) and startup_candidates:
+        lines.append("Startup candidates:")
+        for item in startup_candidates[:4]:
+            if not isinstance(item, dict):
+                continue
+            command = item.get("command", "?")
+            source = item.get("source", "inferred")
+            lines.append(f"  - {command} ({source})")
+
+    runtime_targets = profile.get("runtime_targets", [])
+    if isinstance(runtime_targets, list) and runtime_targets:
+        lines.append("Runtime targets:")
+        for item in runtime_targets[:6]:
+            if not isinstance(item, dict):
+                continue
+            method = item.get("method", "GET")
+            path = item.get("path", "/")
+            kind = item.get("kind", "target")
+            lines.append(f"  - {method} {path} [{kind}]")
+
+    blind_spots = profile.get("blind_spots", [])
+    if isinstance(blind_spots, list) and blind_spots:
+        lines.append("Blind spots:")
+        for item in blind_spots[:6]:
+            if not isinstance(item, dict):
+                continue
+            lines.append(f"  - {item.get('summary', '?')}")
+    return lines

@@ -35,6 +35,14 @@ from .memory_map import (
     format_memory_map_for_prompt,
     load_memory_map,
     save_memory_map,
+    with_repo_profile,
+)
+from .extractors import extract as extract_flow_graph, extractor_capabilities
+from .repo_profile import (
+    analyze_repository,
+    format_repo_profile,
+    probe_runtime,
+    repo_profile_prompt,
 )
 from .runner import PlaywrightRunner, RunResult, RunnerSetupError
 
@@ -222,6 +230,15 @@ def index(
     )
     click.echo(format_feature_summary(feature_map))
 
+    flow_graph = extract_flow_graph(repo_path)
+    repo_profile = analyze_repository(
+        repo_path,
+        files,
+        flow_graph=flow_graph,
+        extractor_capabilities=extractor_capabilities(),
+    )
+    click.echo(format_repo_profile(repo_profile))
+
     click.echo("Embedding and indexing...")
     from .embedder import MockEmbedder as _MockEmbedder
 
@@ -235,11 +252,142 @@ def index(
     click.echo(f"  Index saved to: {persist_dir!r}  ({indexer.count()} vectors)")
 
     if memory_map:
-        map_data = build_memory_map(chunks, repository_feature_map=feature_map)
+        map_data = build_memory_map(
+            chunks,
+            repository_feature_map=feature_map,
+            repo_profile=repo_profile,
+        )
+        map_data = with_repo_profile(map_data, repo_profile)
         save_memory_map(map_data, memory_map)
         click.echo(f"  Memory map saved to: {memory_map!r}")
 
     click.echo("Done.")
+
+
+@cli.command()
+@click.argument("repo_path", default=".", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "--run",
+    "run_probe",
+    is_flag=True,
+    default=False,
+    help="Attempt a best-effort runtime probe by auto-starting the top startup candidate.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit machine-readable inspection output.",
+)
+def inspect(repo_path: str, run_probe: bool, json_output: bool) -> None:
+    """Inspect a repository and infer its stack, startup path, and blind spots."""
+
+    crawler = RepositoryCrawler()
+    files = crawler.crawl(repo_path)
+    flow_graph = extract_flow_graph(repo_path)
+    profile = analyze_repository(
+        repo_path,
+        files,
+        flow_graph=flow_graph,
+        extractor_capabilities=extractor_capabilities(),
+    )
+    runtime_probe = probe_runtime(repo_path, profile) if run_probe else None
+    if json_output:
+        payload = profile.to_dict()
+        if runtime_probe is not None:
+            payload["runtime_probe"] = runtime_probe.to_dict()
+        click.echo(json.dumps(payload, indent=2))
+        return
+    click.echo(format_repo_profile(profile, runtime_probe=runtime_probe))
+
+
+@cli.command()
+@click.argument("repo_path", default=".", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "--run",
+    "run_probe",
+    is_flag=True,
+    default=False,
+    help="Attempt a best-effort runtime probe before printing discovered journeys.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit machine-readable discovery output.",
+)
+def discover(repo_path: str, run_probe: bool, json_output: bool) -> None:
+    """Discover routes, actions, and candidate journeys from a repository."""
+
+    crawler = RepositoryCrawler()
+    files = crawler.crawl(repo_path)
+    flow_graph = extract_flow_graph(repo_path)
+    profile = analyze_repository(
+        repo_path,
+        files,
+        flow_graph=flow_graph,
+        extractor_capabilities=extractor_capabilities(),
+    )
+    runtime_probe = probe_runtime(repo_path, profile) if run_probe else None
+
+    routes = [
+        {"id": route.id, "method": route.method, "path": route.path}
+        for route in tuple(getattr(flow_graph, "routes", ()) or ())[:20]
+    ]
+    actions = [
+        {"id": action.id, "role": action.role, "file": action.file}
+        for action in tuple(getattr(flow_graph, "actions", ()) or ())[:20]
+    ]
+    journeys = _discover_journeys(flow_graph)
+
+    if json_output:
+        payload = {
+            "repo_profile": profile.to_dict(),
+            "routes": routes,
+            "actions": actions,
+            "journeys": journeys,
+        }
+        if runtime_probe is not None:
+            payload["runtime_probe"] = runtime_probe.to_dict()
+        click.echo(json.dumps(payload, indent=2))
+        return
+
+    click.echo("Discovered surface")
+    click.echo("==================")
+    click.echo(f"Archetype: {profile.archetype} (confidence={profile.confidence:.2f})")
+    click.echo("")
+    click.echo("Routes")
+    click.echo("------")
+    if routes:
+        for route in routes:
+            click.echo(f"- {route['method']} {route['path']} ({route['id']})")
+    else:
+        click.echo("- none inferred")
+    click.echo("")
+    click.echo("Actions")
+    click.echo("-------")
+    if actions:
+        for action in actions:
+            click.echo(f"- {action['role']} ({action['file']})")
+    else:
+        click.echo("- none inferred")
+    click.echo("")
+    click.echo("Journeys")
+    click.echo("--------")
+    if journeys:
+        for journey in journeys:
+            click.echo(f"- {journey}")
+    else:
+        click.echo("- no journeys inferred")
+    if runtime_probe is not None:
+        click.echo("")
+        click.echo("Runtime probe")
+        click.echo("-------------")
+        for line in format_repo_profile(profile, runtime_probe=runtime_probe).splitlines():
+            if line.startswith("- ") or line.startswith("Runtime probe") or line.startswith("-------------"):
+                click.echo(line)
 
 
 @cli.command()
@@ -382,6 +530,20 @@ def index(
     ),
 )
 @click.option(
+    "--mode",
+    "generation_mode",
+    default="static",
+    show_default=True,
+    type=click.Choice(["static", "runtime", "hybrid", "repair", "gap-fill"], case_sensitive=False),
+    help="Generation strategy: repository-first, runtime-first, hybrid, repair, or gap-fill.",
+)
+@click.option(
+    "--auto-start",
+    is_flag=True,
+    default=False,
+    help="Infer startup commands and include runtime probe results in generation context.",
+)
+@click.option(
     "--mock-embedder",
     is_flag=True,
     default=False,
@@ -467,6 +629,8 @@ def generate(
     env_file: str | None,
     redact_secrets: bool,
     memory_map: str | None,
+    generation_mode: str,
+    auto_start: bool,
     mock_embedder: bool,
     run_after_generate: bool,
     run_target_dir: str | None,
@@ -548,14 +712,37 @@ def generate(
         llm_client = TemplateLLMClient()
 
     extra_parts: list[str] = []
+    repo_profile = None
 
     if memory_map:
         try:
             map_data = load_memory_map(memory_map)
             extra_parts.append(format_memory_map_for_prompt(map_data))
             click.echo(f"Memory map loaded from: {memory_map!r}", err=True)
+            if isinstance(map_data.get("repo_profile"), dict):
+                extra_parts.append("Repository profile loaded from memory map.")
         except (FileNotFoundError, ValueError) as exc:
             click.echo(f"Warning: could not load --memory-map {memory_map!r}: {exc}", err=True)
+
+    inspect_root = Path.cwd()
+    try:
+        crawler = RepositoryCrawler()
+        profiled_files = crawler.crawl(str(inspect_root))
+        profiled_graph = extract_flow_graph(inspect_root)
+        repo_profile = analyze_repository(
+            inspect_root,
+            profiled_files,
+            flow_graph=profiled_graph,
+            extractor_capabilities=extractor_capabilities(),
+        )
+        extra_parts.append(repo_profile_prompt(repo_profile))
+        if auto_start:
+            runtime_probe = probe_runtime(inspect_root, repo_profile)
+            extra_parts.append(
+                "Runtime probe result:\n" + json.dumps(runtime_probe.to_dict(), indent=2)
+            )
+    except Exception as exc:  # pragma: no cover - defensive
+        click.echo(f"Warning: repository inspection skipped: {exc}", err=True)
 
     if auth_config:
         try:
@@ -627,6 +814,8 @@ def generate(
             redact_secrets=redact_secrets,
             uncovered_excerpts=uncovered_excerpts,
             uncovered_cap=coverage_cap,
+            generation_mode=generation_mode,
+            repo_profile=repo_profile,
         )
     except PlaywrightCLIError as exc:
         click.echo(f"Error: {exc}", err=True)
@@ -728,6 +917,15 @@ def generate(
     ),
 )
 @click.option(
+    "--coverage-dimensions",
+    default="line,route",
+    show_default=True,
+    help=(
+        "Comma-separated coverage dimensions to emphasize in the plan "
+        "(e.g. journey,route,error,a11y,browser,persona)."
+    ),
+)
+@click.option(
     "--output",
     "-o",
     default=None,
@@ -807,6 +1005,7 @@ def plan(
     persist_dir: str,
     collection: str,
     focus: str | None,
+    coverage_dimensions: str,
     output: str | None,
     provider: str | None,
     model: str | None,
@@ -869,6 +1068,10 @@ def plan(
         )
 
     memory_map_text = format_memory_map_for_prompt(map_data)
+    memory_map_text += (
+        "\n\nCoverage dimensions\n-------------------\n"
+        + ", ".join(part.strip() for part in coverage_dimensions.split(",") if part.strip())
+    )
 
     # Resolve provider config from CLI args, env vars, and defaults
     provider, model, api_key, ollama_url = _resolve_provider_config(
@@ -942,6 +1145,89 @@ def plan(
         click.echo(f"Test plan written to: {output}", err=True)
     else:
         click.echo(plan_text)
+
+
+@cli.group(name="coverage")
+def coverage_group() -> None:
+    """Coverage-related commands."""
+
+
+@coverage_group.command(name="report")
+@click.argument("coverage_report", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option(
+    "--flow-graph",
+    "flow_graph_path",
+    default=None,
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help="Optional flow_graph.json for route-aware reporting.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    default=False,
+    help="Emit machine-readable coverage summary.",
+)
+def coverage_report_cmd(
+    coverage_report: str,
+    flow_graph_path: str | None,
+    json_output: bool,
+) -> None:
+    """Summarise uncovered files, routes, and inferred journey gaps."""
+
+    with open(coverage_report, "r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    coverage_payload = _coverage_payload_for_plan(payload)
+    flow_graph = _load_flow_graph(flow_graph_path) if flow_graph_path else None
+    journeys = _discover_journeys(flow_graph) if flow_graph is not None else []
+    route_block = (coverage_payload.get("routes") or {}) if isinstance(coverage_payload, dict) else {}
+    uncovered_routes = route_block.get("uncovered", []) if isinstance(route_block, dict) else []
+    if json_output:
+        click.echo(
+            json.dumps(
+                {
+                    "coverage": coverage_payload,
+                    "uncovered_routes": uncovered_routes,
+                    "journey_candidates": journeys,
+                },
+                indent=2,
+            )
+        )
+        return
+
+    click.echo("Coverage report")
+    click.echo("===============")
+    summary = coverage_payload.get("summary") or {}
+    click.echo(
+        f"Coverage: {summary.get('percent', 0.0)}% "
+        f"({summary.get('covered_lines', 0)}/{summary.get('covered_lines', 0) + summary.get('uncovered_lines', 0)} lines)"
+    )
+    click.echo("")
+    click.echo("Top gaps")
+    click.echo("--------")
+    block = PlaywrightTestGenerator._format_coverage_delta(
+        coverage_payload,
+        prioritize="absolute",
+        flow_graph=flow_graph,
+    )
+    for line in block.splitlines()[4:16]:
+        click.echo(line)
+    click.echo("")
+    click.echo("Route gaps")
+    click.echo("----------")
+    if uncovered_routes:
+        for route_id in uncovered_routes[:12]:
+            click.echo(f"- {route_id}")
+    else:
+        click.echo("- no uncovered route metadata present")
+    click.echo("")
+    click.echo("Journey candidates")
+    click.echo("------------------")
+    if journeys:
+        for journey in journeys[:12]:
+            click.echo(f"- {journey}")
+    else:
+        click.echo("- no journey candidates inferred")
 
 
 def _print_run_summary(result: RunResult, *, json_output: bool = False) -> None:
@@ -1517,6 +1803,28 @@ def _load_flow_graph(path: str):
         click.echo(f"Error: could not load flow graph {path!r}: {exc}", err=True)
         sys.exit(1)
     return FlowGraph.from_dict(data)
+
+
+def _discover_journeys(flow_graph) -> list[str]:
+    """Infer lightweight journey descriptions from a flow graph."""
+
+    if flow_graph is None:
+        return []
+    routes = tuple(getattr(flow_graph, "routes", ()) or ())
+    actions = tuple(getattr(flow_graph, "actions", ()) or ())
+    journeys: list[str] = []
+    for route in routes[:8]:
+        path = getattr(route, "path", "/")
+        method = getattr(route, "method", "GET")
+        if method == "GET":
+            journeys.append(f"Visit `{path}` and verify the primary screen renders.")
+        else:
+            journeys.append(f"Exercise `{method} {path}` through its corresponding UI or API trigger.")
+    for action in actions[:6]:
+        role = getattr(action, "role", "action")
+        file_name = getattr(action, "file", "source")
+        journeys.append(f"Trigger `{role}` from `{file_name}` and validate the expected state transition.")
+    return list(dict.fromkeys(journeys))
 
 
 @cli.group(name="graph")

@@ -11,9 +11,10 @@ a single :func:`warnings.warn` is emitted per process with an install hint.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import warnings
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 from ..flow_graph import Action, Edge, FlowGraph, Node, Route, View
 from . import html as _html
@@ -27,6 +28,63 @@ _HTML_EXTS = {".html", ".htm"}
 _WARNED: set[str] = set()
 
 
+@dataclass(frozen=True)
+class ExtractorCapability:
+    """Capability metadata for a registered surface extractor."""
+
+    name: str
+    languages: tuple[str, ...]
+    frameworks: tuple[str, ...]
+    supported_extensions: tuple[str, ...]
+    confidence: float
+    requires_extra_dep: bool = False
+    availability_check: Callable[[], bool] | None = None
+
+    @property
+    def available(self) -> bool:
+        return self.availability_check() if self.availability_check is not None else True
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "languages": list(self.languages),
+            "frameworks": list(self.frameworks),
+            "supported_extensions": list(self.supported_extensions),
+            "confidence": round(self.confidence, 3),
+            "requires_extra_dep": self.requires_extra_dep,
+            "available": self.available,
+        }
+
+
+_CAPABILITIES: tuple[ExtractorCapability, ...] = (
+    ExtractorCapability(
+        name="python-web",
+        languages=("python",),
+        frameworks=("fastapi", "flask", "django"),
+        supported_extensions=tuple(sorted(_PY_EXTS)),
+        confidence=0.85,
+    ),
+    ExtractorCapability(
+        name="js-ts-ui",
+        languages=("javascript", "typescript", "vue"),
+        frameworks=("react", "react-router", "nextjs", "vue"),
+        supported_extensions=tuple(sorted(_JS_EXTS)),
+        confidence=0.8,
+        requires_extra_dep=True,
+        availability_check=_js_ts.is_available,
+    ),
+    ExtractorCapability(
+        name="html-surface",
+        languages=("html",),
+        frameworks=("server-rendered-html", "static-site"),
+        supported_extensions=tuple(sorted(_HTML_EXTS)),
+        confidence=0.7,
+        requires_extra_dep=True,
+        availability_check=_html.is_available,
+    ),
+)
+
+
 def _warn_once(category: str, message: str) -> None:
     if category in _WARNED:
         return
@@ -38,6 +96,12 @@ def _reset_warnings() -> None:
     """Test hook: clear the per-process "warned once" registry."""
 
     _WARNED.clear()
+
+
+def extractor_capabilities() -> list[dict[str, object]]:
+    """Return capability metadata for all registered extractors."""
+
+    return [item.to_dict() for item in _CAPABILITIES]
 
 
 def _walk(root: Path, excluded: set[str]) -> Iterable[Path]:
@@ -128,4 +192,14 @@ def _relpath(path: Path, root: Path) -> str:
         return str(path).replace("\\", "/")
 
 
-__all__ = ["extract", "Action", "Edge", "FlowGraph", "Node", "Route", "View"]
+__all__ = [
+    "extract",
+    "extractor_capabilities",
+    "ExtractorCapability",
+    "Action",
+    "Edge",
+    "FlowGraph",
+    "Node",
+    "Route",
+    "View",
+]

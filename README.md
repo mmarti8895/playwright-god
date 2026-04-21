@@ -8,6 +8,8 @@
 - `index` crawls files with `RepositoryCrawler`, splits them into overlapping chunks with `FileChunker`, embeds them into Chroma with `RepositoryIndexer`, and can save a compact `MemoryMap`.
 - During indexing it also infers higher-level feature structure via `feature_map.py`, so the memory map is not just file inventory; it also carries inferred features, correlations, and test opportunities.
 - `generate` performs RAG search over the indexed chunks, optionally injects the saved memory map plus auth/logging hints, and asks an LLM to produce a TypeScript Playwright spec for `@playwright/test`.
+- `inspect` infers stack, repo archetype, startup candidates, runtime targets, auth/environment hints, and explicit blind spots for unfamiliar repositories.
+- `discover` summarizes inferred routes, actions, and candidate user journeys from the repo surface.
 - `plan` uses the memory map or index inventory to produce a Markdown test plan grouped around feature areas.
 - There is also an offline template fallback, so generation and planning still work without an external LLM API key.
 
@@ -156,6 +158,15 @@ provider falls back to the offline template generator.
 `plan`
 - turns a saved memory map or index inventory into a Markdown test plan
 - groups scenarios by inferred feature area when that metadata is available
+
+`inspect`
+- classifies the repository as SPA, SSR app, API + frontend, monolith, static site, or workspace
+- detects frameworks, package managers, build tools, test frameworks, startup candidates, and blind spots
+- can optionally attempt a lightweight runtime probe with `--run`
+
+`discover`
+- extracts a surface view of routes, actions, and candidate journeys
+- can emit machine-readable JSON for downstream tooling
 
 `run`
 - shells out to `npx playwright test --reporter=json` against a generated `*.spec.ts`

@@ -15,8 +15,10 @@ from playwright_god.memory_map import (
     load_memory_map,
     save_memory_map,
     with_flow_graph,
+    with_repo_profile,
 )
 from playwright_god.flow_graph import Evidence, FlowGraph, Route
+from playwright_god.repo_profile import BlindSpot, RepoProfile, RuntimeTarget, StartupCandidate
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +136,37 @@ class TestBuildMemoryMap:
         assert result["schema_version"] == "2.1"
         assert "features" in result
         assert "test_opportunities" in result
+
+    def test_includes_repo_profile_metadata_when_provided(self):
+        profile = RepoProfile(
+            source_root="/repo",
+            languages={"python": 1},
+            frameworks=("fastapi",),
+            archetype="api-service",
+            confidence=0.8,
+            startup_candidates=(
+                StartupCandidate(
+                    command="python -m uvicorn app:app",
+                    source="pyproject:uvicorn",
+                    base_url="http://127.0.0.1:8000",
+                    confidence=0.8,
+                ),
+            ),
+            runtime_targets=(
+                RuntimeTarget(
+                    kind="route",
+                    method="GET",
+                    path="/healthz",
+                    base_url="http://127.0.0.1:8000",
+                    confidence=0.75,
+                ),
+            ),
+            blind_spots=(BlindSpot(category="extractor", summary="example"),),
+        )
+        result = build_memory_map([], repo_profile=profile)
+        assert result["schema_version"] == "2.3"
+        assert result["repo_profile"]["archetype"] == "api-service"
+        assert result["startup_candidates"][0]["command"] == "python -m uvicorn app:app"
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +352,27 @@ class TestFormatMemoryMapForPrompt:
         assert "Feature areas" in result
         assert "Suggested test opportunities" in result
 
+    def test_repo_profile_sections_render_when_present(self):
+        result = format_memory_map_for_prompt(
+            {
+                "total_files": 0,
+                "total_chunks": 0,
+                "languages": {},
+                "files": [],
+                "repo_profile": {
+                    "archetype": "spa",
+                    "confidence": 0.8,
+                    "frameworks": ["react"],
+                    "startup_candidates": [{"command": "npm run dev", "source": "package.json:dev"}],
+                    "runtime_targets": [{"method": "GET", "path": "/", "kind": "route"}],
+                    "blind_spots": [{"summary": "No runtime probe was attempted."}],
+                },
+            }
+        )
+        assert "Repository profile" in result
+        assert "Startup candidates" in result
+        assert "Blind spots" in result
+
     def test_feature_sections_skip_non_dict_entries_and_support_dict_payloads(self):
         result = format_memory_map_for_prompt(
             {
@@ -471,3 +525,32 @@ class TestFlowGraphSchema22:
         base = {"schema_version": "2.5"}
         out = with_flow_graph(base, self._graph())
         assert out["schema_version"] == "2.5"
+
+
+class TestRepoProfileSchema23:
+    def test_with_repo_profile_bumps_schema(self):
+        base = build_memory_map([])
+        out = with_repo_profile(
+            base,
+            {
+                "source_root": "/repo",
+                "archetype": "spa",
+                "frameworks": ["react"],
+                "runtime_targets": [],
+                "startup_candidates": [],
+                "environment_profile": {},
+                "auth_profile": {},
+                "bootstrap_steps": [],
+                "state_recipes": [],
+            },
+        )
+        assert out["schema_version"] == "2.3"
+        assert out["repo_profile"]["archetype"] == "spa"
+
+    def test_load_map_defaults_repo_profile_keys(self, tmp_path):
+        path = tmp_path / "m.json"
+        path.write_text(json.dumps({"schema_version": "2.2", "files": []}), encoding="utf-8")
+        loaded = load_memory_map(str(path))
+        assert loaded["repo_profile"] is None
+        assert loaded["startup_candidates"] == []
+        assert loaded["runtime_targets"] == []

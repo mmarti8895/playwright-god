@@ -154,6 +154,7 @@ def load_memory_map(path: str) -> dict:
         data.setdefault("auth_profile", {})
         data.setdefault("bootstrap_steps", [])
         data.setdefault("state_recipes", [])
+        data.setdefault("runtime_profile", {})
     return data
 
 
@@ -199,6 +200,7 @@ def with_repo_profile(memory_map: dict, repo_profile: RepoProfile | dict | None)
         out["auth_profile"] = {}
         out["bootstrap_steps"] = []
         out["state_recipes"] = []
+        out["runtime_profile"] = {}
         return out
     out.update(_repo_profile_payload(repo_profile))
     return out
@@ -312,6 +314,7 @@ def _repo_profile_payload(repo_profile: RepoProfile | dict) -> dict[str, object]
         "auth_profile": payload.get("auth_profile", {}),
         "bootstrap_steps": payload.get("bootstrap_steps", []),
         "state_recipes": payload.get("state_recipes", []),
+        "runtime_profile": payload.get("runtime_profile", {}),
     }
 
 

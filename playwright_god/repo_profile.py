@@ -82,12 +82,18 @@ class StateRecipe:
     title: str
     steps: tuple[str, ...]
     confidence: float = 0.5
+    kind: str = "generic"
+    required_env: tuple[str, ...] = ()
+    blocking: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
             "title": self.title,
             "steps": list(self.steps),
             "confidence": round(self.confidence, 3),
+            "kind": self.kind,
+            "required_env": list(self.required_env),
+            "blocking": self.blocking,
         }
 
 
@@ -109,6 +115,7 @@ class RepoProfile:
     state_recipes: tuple[StateRecipe, ...] = ()
     blind_spots: tuple[BlindSpot, ...] = ()
     notes: tuple[str, ...] = ()
+    runtime_profile: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -128,6 +135,7 @@ class RepoProfile:
             "state_recipes": [item.to_dict() for item in self.state_recipes],
             "blind_spots": [item.to_dict() for item in self.blind_spots],
             "notes": list(self.notes),
+            "runtime_profile": self.runtime_profile,
         }
 
 
@@ -208,6 +216,7 @@ def analyze_repository(
         state_recipes=state_recipes,
         blind_spots=blind_spots,
         notes=notes,
+        runtime_profile={},
     )
 
 
@@ -814,6 +823,10 @@ def _state_recipes(
 ) -> tuple[StateRecipe, ...]:
     recipes: list[StateRecipe] = []
     auth_type = str(auth_profile.get("type", "unknown"))
+    env_vars = tuple(str(item) for item in (environment_profile.get("env_vars") or ()))
+    credential_vars = tuple(
+        name for name in env_vars if any(token in name.upper() for token in ("USER", "PASS", "TOKEN", "KEY"))
+    )
     if auth_type in {"basic", "oidc", "saml", "token"}:
         recipes.append(
             StateRecipe(
@@ -824,6 +837,9 @@ def _state_recipes(
                     "Persist auth state for follow-up journeys when practical.",
                 ),
                 confidence=float(auth_profile.get("confidence", 0.5)),
+                kind="auth-bootstrap",
+                required_env=credential_vars,
+                blocking=bool(credential_vars),
             )
         )
     if environment_profile.get("seed_signals"):
@@ -835,6 +851,7 @@ def _state_recipes(
                     "Reset shared data after destructive flows when needed.",
                 ),
                 confidence=0.65,
+                kind="state-seed",
             )
         )
     return tuple(recipes)

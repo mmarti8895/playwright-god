@@ -9,8 +9,11 @@
 - During indexing it also infers higher-level feature structure via `feature_map.py`, so the memory map is not just file inventory; it also carries inferred features, correlations, and test opportunities.
 - `generate` performs RAG search over the indexed chunks, optionally injects the saved memory map plus auth/logging hints, and asks an LLM to produce a TypeScript Playwright spec for `@playwright/test`.
 - `inspect` infers stack, repo archetype, startup candidates, runtime targets, auth/environment hints, and explicit blind spots for unfamiliar repositories.
+- `inspect --run` now resolves a concrete launch plan, attempts runtime readiness, and reports blockers such as missing env vars or startup failures.
 - `discover` summarizes inferred routes, actions, and candidate user journeys from the repo surface.
 - `plan` uses the memory map or index inventory to produce a Markdown test plan grouped around feature areas.
+- `generate --mode gap-fill|hybrid` now ranks worthwhile targets using uncovered routes, user journeys, feature-map opportunities, and existing test coverage.
+- `generate --run` now evaluates whether the generated spec was green and whether it added meaningful route/journey coverage or duplicated an existing flow.
 - There is also an offline template fallback, so generation and planning still work without an external LLM API key.
 
 ## How It Works
@@ -118,6 +121,8 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 `generate`
 - retrieves relevant repository chunks through RAG search
 - injects optional saved memory and auth context
+- can auto-start the inferred app with a deterministic launch plan
+- ranks high-value targets against existing tests and uncovered routes when using `--mode hybrid` or `--mode gap-fill`
 - emits TypeScript Playwright tests for `@playwright/test`
 
 | Flag | Default | Description |
@@ -127,6 +132,8 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 | `-o`, `--output` | stdout | Write test to this file (must be a file path, not a directory) |
 | `--n-context` | `10` | Number of context chunks to retrieve |
 | `-m`, `--memory-map` | *(none)* | Inject memory map context into the prompt |
+| `--mode` | `static` | Generation strategy: `static`, `runtime`, `hybrid`, `repair`, or `gap-fill` |
+| `--auto-start` | `false` | Use the runtime bootstrap pipeline before generation |
 | `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template`, `playwright-cli` |
 | `--model` | provider default | Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `gemini-1.5-pro`, `llama3`) |
 | `--api-key` | env var | API key (overrides the environment variable) |
@@ -162,7 +169,7 @@ provider falls back to the offline template generator.
 `inspect`
 - classifies the repository as SPA, SSR app, API + frontend, monolith, static site, or workspace
 - detects frameworks, package managers, build tools, test frameworks, startup candidates, and blind spots
-- can optionally attempt a lightweight runtime probe with `--run`
+- can optionally execute the runtime bootstrap pipeline with `--run`
 
 `discover`
 - extracts a surface view of routes, actions, and candidate journeys
@@ -246,6 +253,7 @@ playwright-god run generated_tests/login.spec.ts \
 
 # Inspect the merged coverage report.
 playwright-god coverage report .pg_runs/<UTC>/coverage_merged.json
+playwright-god coverage report .pg_runs/<UTC>/coverage_merged.json --flow-graph .idx/flow_graph.json
 playwright-god coverage report .pg_runs/<UTC>/coverage_merged.json --format html -o cov.html
 
 # Plan the next round of tests with gaps prioritised.

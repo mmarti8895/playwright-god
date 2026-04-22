@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -2803,3 +2804,92 @@ class TestPlaywrightCLIProvider:
         assert result.exit_code == 0
         call_kwargs = MockCLI.call_args[1]
         assert call_kwargs["url"] is None
+
+    def test_generate_passes_generation_mode_to_generator(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.PlaywrightTestGenerator") as MockGen,
+            patch("playwright_god.cli.RepositoryCrawler") as MockCrawler,
+            patch("playwright_god.cli.extract_flow_graph") as MockExtract,
+            patch("playwright_god.cli.analyze_repository") as MockProfile,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            MockCrawler.return_value.crawl.return_value = []
+            MockExtract.return_value = MagicMock()
+            MockProfile.return_value = MagicMock(
+                archetype="spa",
+                confidence=0.8,
+                frameworks=("react",),
+            )
+            mock_gen = MagicMock()
+            mock_gen.generate.return_value = "// generated"
+            MockGen.return_value = mock_gen
+
+            result = runner.invoke(
+                cli,
+                ["generate", "login flow", "-d", persist, "--mode", "hybrid"],
+            )
+
+        assert result.exit_code == 0
+        assert mock_gen.generate.call_args[1]["generation_mode"] == "hybrid"
+
+
+class TestInspectAndDiscoverCommands:
+    def test_inspect_outputs_profile_summary(self, runner, tmp_path):
+        (tmp_path / "package.json").write_text(
+            '{"scripts":{"dev":"vite"},"dependencies":{"react":"18.0.0"}}',
+            encoding="utf-8",
+        )
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "App.tsx").write_text("export default function App(){return null}\n", encoding="utf-8")
+
+        result = runner.invoke(cli, ["inspect", str(tmp_path)])
+
+        assert result.exit_code == 0
+        assert "Repository inspection" in result.output
+        assert "Startup candidates" in result.output
+
+    def test_discover_json_outputs_routes_and_journeys(self, runner, tmp_path):
+        (tmp_path / "api.py").write_text(
+            "from fastapi import FastAPI\napp = FastAPI()\n@app.get('/healthz')\ndef x(): return 'ok'\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli, ["discover", str(tmp_path), "--json"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert "routes" in payload
+        assert "journeys" in payload
+        assert payload["routes"][0]["path"] == "/healthz"
+
+    def test_coverage_report_command_summarizes_payload(self, runner, tmp_path):
+        coverage_path = tmp_path / "coverage.json"
+        coverage_path.write_text(
+            json.dumps(
+                {
+                    "source": "merged",
+                    "generated_at": "t",
+                    "files": {
+                        "api.py": {
+                            "path": "api.py",
+                            "total_lines": 4,
+                            "covered_lines": 2,
+                            "missing_line_ranges": [[3, 4]],
+                            "covered_line_set": [1, 2],
+                        }
+                    },
+                    "routes": [{"route_id": "route:GET:/healthz", "method": "GET", "path": "/healthz", "covered": False, "handler_files": ["api.py"]}],
+                    "merge_meta": ["backend"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli, ["coverage", "report", str(coverage_path)])
+
+        assert result.exit_code == 0
+        assert "Coverage report" in result.output
+        assert "Journey candidates" in result.output

@@ -61,7 +61,7 @@ class AnthropicClient(LLMClient):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-3-7-sonnet-latest",
         max_tokens: int = 4096,
     ) -> None:
         try:

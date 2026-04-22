@@ -135,7 +135,7 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 | `--mode` | `static` | Generation strategy: `static`, `runtime`, `hybrid`, `repair`, or `gap-fill` |
 | `--auto-start` | `false` | Use the runtime bootstrap pipeline before generation |
 | `--provider` | auto | LLM provider: `openai`, `anthropic`, `gemini`, `ollama`, `template`, `playwright-cli` |
-| `--model` | provider default | Model name (e.g. `gpt-4o`, `claude-3-5-sonnet-20241022`, `gemini-1.5-pro`, `llama3`) |
+| `--model` | provider default | Model name (e.g. `gpt-4o`, `claude-3-7-sonnet-latest`, `gemini-1.5-pro`, `llama3`) |
 | `--api-key` | env var | API key (overrides the environment variable) |
 | `--ollama-url` | `http://localhost:11434` | Ollama server URL (used only with `--provider=ollama`) |
 | `--playwright-cli-url` | *(extract from context)* | Base URL passed to `npx playwright codegen` (used only with `--provider=playwright-cli`) |
@@ -588,7 +588,7 @@ When `--provider` is omitted and `PLAYWRIGHT_GOD_PROVIDER` is not set, the CLI a
 ### Supported Providers
 
 - `openai` (default model: `gpt-4o`)
-- `anthropic` (default model: `claude-3-5-sonnet-20241022`)
+- `anthropic` (default model: `claude-3-7-sonnet-latest`)
 - `gemini` (default model: `gemini-1.5-pro`)
 - `ollama` (default model: `llama3`)
 - `template` (offline fallback)

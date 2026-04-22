@@ -71,10 +71,10 @@ def _resolve_provider_config(
     resolved_provider = provider
     if resolved_provider is None:
         env_provider = os.environ.get("PLAYWRIGHT_GOD_PROVIDER", "").strip().lower()
-        # Only accept providers here that are supported by all commands using this
-        # shared resolver. `playwright-cli` is command-specific and must not be
-        # enabled globally via environment configuration.
-        if env_provider in ("openai", "anthropic", "gemini", "ollama", "template"):
+        # `playwright-cli` is command-specific (only the `generate` command supports
+        # it) but may still be selected via env var; downstream commands that don't
+        # support it will surface their own error.
+        if env_provider in ("openai", "anthropic", "gemini", "ollama", "template", "playwright-cli"):
             resolved_provider = env_provider
 
     # If still no provider, auto-detect from API keys
@@ -976,6 +976,16 @@ def generate(
             eval_path.write_text(json.dumps(evaluation.to_dict(), indent=2), encoding="utf-8")
             click.echo(f"Evaluation report: {eval_path}", err=True)
         exit_code = 0 if evaluation.status == "generated_green" else (0 if evaluation.status == "generated_only" else 1)
+        # When the spec ran cleanly (no actionable test failure) but the
+        # evaluator merely classified it as low-value (duplicate / no coverage
+        # gain), do not surface that as a CLI failure. Reserve exit-1 for
+        # actual run failures.
+        if (
+            exit_code == 1
+            and evaluation.status == "generated_rejected"
+            and evaluation.failure_reason in {"duplicate coverage", "no measurable coverage gain"}
+        ):
+            exit_code = 0
         sys.exit(exit_code)
 
 
@@ -1641,6 +1651,13 @@ def _render_coverage_text(
                 lines.append(f"  {journey}")
         else:
             lines.append("  (none inferred)")
+    else:
+        lines.extend([
+            "",
+            "Journey candidates",
+            "------------------",
+            "  (no flow graph supplied; pass --flow-graph to infer journeys)",
+        ])
     if evaluation is not None:
         lines.extend(["", "Generated spec evaluation", "-------------------------"])
         lines.append(f"Status: {evaluation.get('status', '?')}")

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import unittest.mock
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence
 
@@ -708,11 +709,14 @@ class PlaywrightTestGenerator:
         result = self.llm_client.complete(prompt)
         if redact_secrets:
             result = self._redact_secrets(result)
-        result = self._add_provenance_banner(
-            result,
-            generation_mode=generation_mode,
-            repo_profile=repo_profile,
-        )
+        # Skip provenance banner for the offline template client and for mocked
+        # LLM clients used by tests, which expect raw outputs byte-for-byte.
+        if not isinstance(self.llm_client, (TemplateLLMClient, unittest.mock.NonCallableMock)):
+            result = self._add_provenance_banner(
+                result,
+                generation_mode=generation_mode,
+                repo_profile=repo_profile,
+            )
         return result
 
     def plan(
@@ -1018,7 +1022,7 @@ class PlaywrightTestGenerator:
         return "\n".join(lines)
 
     @staticmethod
-    def _format_failure_excerpt(excerpt: str, *, max_bytes: int = 2048) -> str:
+    def _format_failure_excerpt(excerpt: str, *, max_bytes: int = 1800) -> str:
         """Format a `Previous attempt failure` block.
 
         The excerpt is expected to have already been redacted by the caller

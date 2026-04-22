@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Transparent root so macOS vibrancy shows through. The Linux fallback
+   is applied to .pg-sidebar / .pg-shell directly via Tailwind. */
+body {
+  background: transparent;
+  color: theme("colors.ink.800");
+  font-family: theme("fontFamily.sans");
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  user-select: none;
+}
+
+/* Inputs and textareas opt back into selection. */
+input,
+textarea,
+[contenteditable="true"],
+.pg-selectable {
+  user-select: text;
+}
+
+/* Drag region for the hidden-inset titlebar (macOS) - any element with
+   data-tauri-drag-region becomes a hit target for window dragging. */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] [role="button"] {
+  -webkit-app-region: no-drag;
+}
+
+/* Accessibility: ensure every focusable control has a visible focus ring.
+   Radix primitives expose `:focus-visible`; this gives every <button>,
+   <a>, <input>, <textarea>, <select>, and [tabindex] a consistent ring
+   so keyboard users can always see where they are (task 16.1). */
+:focus-visible {
+  outline: 2px solid theme("colors.ink.900");
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+}

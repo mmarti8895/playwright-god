@@ -6,7 +6,7 @@
 
 - It is a Python CLI that analyzes a repository and builds retrieval context for AI-assisted test authoring.
 - `index` crawls files with `RepositoryCrawler`, splits them into overlapping chunks with `FileChunker`, embeds them into Chroma with `RepositoryIndexer`, and can save a compact `MemoryMap`.
-- During indexing it also infers higher-level feature structure via `feature_map.py`, so the memory map is not just file inventory; it also carries inferred features, correlations, and test opportunities.
+- During indexing it also infers higher-level feature structure via `feature_map.py`, so the memory map is not just file inventory; it also carries inferred feature areas, file correlations, and test opportunities.
 - `generate` performs RAG search over the indexed chunks, optionally injects the saved memory map plus auth/logging hints, and asks an LLM to produce a TypeScript Playwright spec for `@playwright/test`.
 - `inspect` infers stack, repo archetype, startup candidates, runtime targets, auth/environment hints, and explicit blind spots for unfamiliar repositories.
 - `inspect --run` now resolves a concrete launch plan, attempts runtime readiness, and reports blockers such as missing env vars or startup failures.
@@ -698,6 +698,82 @@ This project takes API key safety seriously. Multiple layers of protection are i
 1. **Revoke it immediately** at the provider dashboard.
 2. Issue a new key and update your local `.env`.
 3. If the key was committed, scrub git history with [`git-filter-repo`](https://github.com/newren/git-filter-repo) **and** force-push — but treat the key as compromised regardless, because mirrors and caches may have already pulled it.
+
+## Desktop app (experimental)
+
+A native desktop shell for `playwright-god` lives in [`desktop/`](./desktop). It wraps the
+Python CLI — never re-implementing pipeline logic — and gives you a single window to
+select a repository, run the full pipeline, and review the artifacts (memory map, flow
+graph, coverage, RAG context, audit log, codegen stream, inspect/discover) it produces.
+
+### Screenshots
+
+> Screenshots are tracked in [`docs/desktop/screenshots/`](./docs/desktop/screenshots/).
+> Capture new ones with `cmd/ctrl+shift+4` (macOS) or your distro's screenshot tool
+> after running `make desktop` against a repo with a populated `.pg_runs/` directory.
+
+| View | Image |
+|------|-------|
+| Repository selection + sidebar | `docs/desktop/screenshots/01-home.png` |
+| Pipeline run with live output  | `docs/desktop/screenshots/02-run.png` |
+| Memory-map browser             | `docs/desktop/screenshots/03-memory-map.png` |
+| Flow-graph (reactflow)         | `docs/desktop/screenshots/04-flow-graph.png` |
+| Coverage (files + routes)      | `docs/desktop/screenshots/05-coverage.png` |
+| RAG context inspector          | `docs/desktop/screenshots/06-rag.png` |
+| Audit log + filters            | `docs/desktop/screenshots/07-audit.png` |
+| Codegen live tail              | `docs/desktop/screenshots/08-codegen.png` |
+| Inspect / Discover viewer      | `docs/desktop/screenshots/09-inspect.png` |
+| Settings (CLI + secrets)       | `docs/desktop/screenshots/10-settings.png` |
+
+### Demo builds
+
+Pre-built artifacts (macOS `.dmg` and Linux `.AppImage`) are attached to the latest
+draft release on the [Releases page](https://github.com/marsfromearth/playwright-god/releases).
+They are produced by [`.github/workflows/release-desktop.yml`](./.github/workflows/release-desktop.yml)
+on every `desktop-v*` git tag.
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Rust toolchain (stable, via [rustup](https://rustup.rs))
+- `playwright-god` installed and on `PATH` (`pip install -e .`)
+- macOS or Linux (Windows is not yet supported)
+
+### Run in dev mode
+
+```bash
+make desktop          # installs deps on first run, then `npm run tauri dev`
+# or, manually:
+cd desktop && npm install && npm run tauri dev
+```
+
+### Run the desktop tests
+
+```bash
+make desktop-test     # vitest + cargo test --lib
+```
+
+### Build a release bundle locally
+
+```bash
+cd desktop
+npm ci
+npm run tauri build   # produces .dmg on macOS, .AppImage + .deb on Linux
+```
+
+The output bundle paths are printed at the end of the build. See
+[`desktop/QA.md`](./desktop/QA.md) for the manual-QA checklist that
+must be exercised before publishing a release.
+
+### Layout
+
+- `desktop/src/`         — React + TypeScript + Vite frontend (Tailwind, Radix, react-virtuoso, reactflow)
+- `desktop/src-tauri/`   — Rust backend (Tauri 2, plugin-store, plugin-dialog, plugin-fs, window-vibrancy)
+
+The shell ships the window chrome (hidden-inset titlebar + macOS vibrancy with
+opaque Linux fallback), the sidebar/main/output layout, repository selection
+with a recent-repos list, and viewers for every artifact the CLI emits. See
+`openspec/changes/tauri-desktop-ui/tasks.md` for the full task list.
 
 ## License
 

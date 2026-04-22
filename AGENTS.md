@@ -43,6 +43,17 @@ Run coverage:
 pytest --cov=playwright_god --cov-report=term-missing
 ```
 
+Desktop app (Tauri 2 + React + Vite, see `desktop/`):
+
+```bash
+make desktop          # installs deps on first run, then `npm run tauri dev`
+make desktop-test     # vitest + cargo test
+```
+
+The desktop app is a thin shell over the existing CLI - it spawns `playwright-god`
+subprocesses and renders the artifacts they write. It does not duplicate pipeline
+logic. Source layout: `desktop/src/` (frontend) and `desktop/src-tauri/` (Rust).
+
 ## Capabilities
 
 - `playwright-god index <repo>` — crawl, chunk, embed, and (optionally) emit a memory map

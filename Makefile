@@ -1,7 +1,7 @@
 # playwright-god — common dev tasks
 # Usage: `make <target>`. Run `make help` to see all targets.
 
-.PHONY: help install install-dev hooks scan-secrets scan-secrets-history test test-unit test-integration coverage clean
+.PHONY: help install install-dev hooks scan-secrets scan-secrets-history test test-unit test-integration coverage clean desktop desktop-install desktop-test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -42,3 +42,13 @@ clean: ## Remove build artifacts and caches
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .coverage htmlcov/
+
+desktop-install: ## Install desktop app dependencies (Node + Rust crates)
+	cd desktop && npm install
+
+desktop: desktop-install ## Run the Tauri desktop app in dev mode
+	cd desktop && npm run tauri dev
+
+desktop-test: ## Run desktop app tests (vitest + cargo test)
+	cd desktop && npm test
+	cd desktop/src-tauri && cargo test --lib

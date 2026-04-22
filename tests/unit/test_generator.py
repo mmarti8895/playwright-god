@@ -404,7 +404,7 @@ class TestAnthropicClient:
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
 
         with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
-            client = AnthropicClient(api_key="test-key", model="claude-3-5-sonnet-20241022")
+            client = AnthropicClient(api_key="test-key", model="claude-3-7-sonnet-latest")
             result = client.complete("some prompt")
 
         assert result == "// anthropic generated test"
@@ -427,7 +427,7 @@ class TestAnthropicClient:
         mock_anthropic = MagicMock()
         with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
             client = AnthropicClient(api_key="test-key")
-        assert client.model == "claude-3-5-sonnet-20241022"
+        assert client.model == "claude-3-7-sonnet-latest"
 
 
 # ---------------------------------------------------------------------------

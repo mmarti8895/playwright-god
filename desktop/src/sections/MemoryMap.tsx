@@ -1,30 +1,51 @@
 import { useEffect, useState } from "react";
 import { Panel } from "@/components/Panel";
 import { useUIStore } from "@/state/ui";
-import { readMemoryMap, type MemoryMap, type MemoryMapFile } from "@/lib/artifacts";
+import { usePipelineStore } from "@/state/pipeline";
+import {
+  readIndexStatus,
+  readMemoryMap,
+  type IndexStatus,
+  type MemoryMap,
+  type MemoryMapFile,
+} from "@/lib/artifacts";
+import { runIndex } from "@/lib/pipeline-run";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import clsx from "clsx";
 
 export function MemoryMapView() {
   const repo = useUIStore((s) => s.activeRepo);
   const version = useUIStore((s) => s.artifactsVersion);
-  const setActiveSection = useUIStore((s) => s.setActiveSection);
+  const pipelineStatus = usePipelineStore((s) => s.status);
+  const pipelineTotalSteps = usePipelineStore((s) => s.totalSteps);
   const [data, setData] = useState<MemoryMap | null>(null);
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const isIndexing = pipelineStatus === "running" && pipelineTotalSteps === 1;
 
   useEffect(() => {
     if (!repo) {
       setData(null);
+      setIndexStatus(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    void readMemoryMap(repo).then((mm) => {
-      if (!cancelled) {
-        setData(mm);
-        setLoading(false);
-      }
-    });
+    void Promise.all([readMemoryMap(repo), readIndexStatus(repo)])
+      .then(([mm, status]) => {
+        if (!cancelled) {
+          setData(mm);
+          setIndexStatus(status);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData(null);
+          setIndexStatus(null);
+          setLoading(false);
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -40,7 +61,7 @@ export function MemoryMapView() {
     );
   }
 
-  if (loading) {
+  if (loading && !isIndexing) {
     return (
       <Panel className="flex h-full items-center justify-center">
         <div className="text-[13px] text-ink-500">Loading memory map…</div>
@@ -51,17 +72,28 @@ export function MemoryMapView() {
   if (!data) {
     return (
       <Panel className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <div className="text-[15px] font-medium text-ink-700">No memory map found</div>
+        <div className="text-[15px] font-medium text-ink-700">
+          {isIndexing ? "Indexing repository…" : "No memory map found"}
+        </div>
         <div className="max-w-md text-[13px] text-ink-500">
-          Run the <span className="font-mono">index</span> step to build a memory map at
-          <span className="font-mono"> .idx/memory_map.json</span>.
+          {isIndexing
+            ? "The desktop app is running the index step now. This view will refresh when the run completes."
+            : indexStatus?.has_index
+              ? "A persisted index exists, but no memory map artifact was found yet. Run Index to rebuild the memory map."
+              : (
+                <>
+                  Run the <span className="font-mono">index</span> step to build a memory map at
+                  <span className="font-mono"> .idx/memory_map.json</span>.
+                </>
+              )}
         </div>
         <button
           type="button"
-          onClick={() => setActiveSection("generation")}
-          className="rounded-xl bg-ink-900 px-4 py-2 text-[12px] font-medium text-white hover:bg-ink-800"
+          onClick={() => repo && void runIndex(repo)}
+          disabled={!repo || isIndexing}
+          className="rounded-xl bg-ink-900 px-4 py-2 text-[12px] font-medium text-white hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Run Index
+          {isIndexing ? "Indexing…" : "Run Index"}
         </button>
       </Panel>
     );

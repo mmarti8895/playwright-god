@@ -6,17 +6,13 @@ import clsx from "clsx";
 
 import { Panel } from "@/components/Panel";
 import { useUIStore } from "@/state/ui";
-import { useOutputStore } from "@/state/output";
 import {
   computeProgress,
   usePipelineStore,
   type PipelineStatus,
 } from "@/state/pipeline";
-import {
-  cancelPipeline,
-  startPipeline,
-  type PipelineEvent,
-} from "@/lib/pipeline";
+import { cancelPipeline } from "@/lib/pipeline";
+import { runManagedPipeline } from "@/lib/pipeline-run";
 
 const BADGE: Record<PipelineStatus, { label: string; cls: string }> = {
   idle: { label: "Idle", cls: "bg-ink-100 text-ink-600" },
@@ -37,10 +33,8 @@ function formatElapsed(ms: number): string {
 
 export function Generation() {
   const repo = useUIStore((s) => s.activeRepo);
-  const bumpArtifacts = useUIStore((s) => s.bumpArtifactsVersion);
   const generationPrompt = useUIStore((s) => s.generationPrompt);
   const setGenerationPrompt = useUIStore((s) => s.setGenerationPrompt);
-  const append = useOutputStore((s) => s.append);
 
   const status = usePipelineStore((s) => s.status);
   const completed = usePipelineStore((s) => s.completedSteps);
@@ -51,7 +45,6 @@ export function Generation() {
   const finishedAt = usePipelineStore((s) => s.finishedAt);
   const errorMessage = usePipelineStore((s) => s.errorMessage);
   const runId = usePipelineStore((s) => s.runId);
-  const apply = usePipelineStore((s) => s.apply);
 
   const [description, setDescription] = useState("");
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -85,44 +78,9 @@ export function Generation() {
   });
   const badge = BADGE[status];
 
-  const handleEvent = (e: PipelineEvent) => {
-    apply(e);
-    switch (e.type) {
-      case "run-started":
-        append("info", `--- Pipeline ${e.run_id} started ---`);
-        break;
-      case "started":
-        append("info", `> ${e.step}`);
-        break;
-      case "stdout-line":
-        append("stdout", `[${e.step}] ${e.line}`);
-        break;
-      case "stderr-line":
-        append("stderr", `[${e.step}] ${e.line}`);
-        break;
-      case "finished":
-        append("info", `OK ${e.step}`);
-        break;
-      case "failed":
-        append("stderr", `FAIL ${e.step}: ${e.message}`);
-        break;
-      case "cancelled":
-        append("info", `Pipeline cancelled`);
-        break;
-      case "run-finished":
-        append("info", `Pipeline finished`);
-        bumpArtifacts();
-        break;
-    }
-  };
-
   const handleRun = async () => {
     if (!repo || isRunning) return;
-    try {
-      await startPipeline(repo, handleEvent);
-    } catch (err) {
-      append("stderr", `Failed to start pipeline: ${(err as Error).message}`);
-    }
+    await runManagedPipeline(repo);
   };
 
   const handleCancel = async () => {

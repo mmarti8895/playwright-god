@@ -150,6 +150,7 @@ pub fn run() {
             secrets::secrets_health,
             cli_detect::detect_cli,
             artifacts::read_memory_map,
+            artifacts::read_index_status,
             artifacts::read_flow_graph,
             artifacts::read_coverage,
             artifacts::rag_search,

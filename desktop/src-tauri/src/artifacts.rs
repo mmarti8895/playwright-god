@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tauri::State;
 
+use crate::pipeline::{PipelineMode, PipelineRegistry};
 use crate::settings::{EffectiveSettings, Settings};
 
 // ---------------------------------------------------------------------------
@@ -64,6 +66,26 @@ fn validate_repo(repo: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
+fn first_nonempty_dir(repo: &Path, candidates: &[&str]) -> Option<PathBuf> {
+    for rel in candidates {
+        let p = repo.join(rel);
+        if p.is_dir() && fs::read_dir(&p).ok()?.next().is_some() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexStatus {
+    pub has_index: bool,
+    pub has_memory_map: bool,
+    pub index_dir: Option<String>,
+    pub memory_map_path: Option<String>,
+    pub active_run_id: Option<String>,
+    pub active_run_mode: Option<PipelineMode>,
+}
+
 // ---------------------------------------------------------------------------
 // Memory map (task 7.1)
 // ---------------------------------------------------------------------------
@@ -80,6 +102,33 @@ pub fn read_memory_map(repo: String) -> Result<Option<Value>, String> {
         Some(path) => parse_json(&path).map(Some),
         None => Ok(None),
     }
+}
+
+#[tauri::command]
+pub fn read_index_status(
+    repo: String,
+    registry: State<'_, PipelineRegistry>,
+) -> Result<IndexStatus, String> {
+    let repo = validate_repo(&repo)?;
+    let index_dir = first_nonempty_dir(&repo, &[".idx", ".playwright_god_index"]);
+    let memory_map_path = first_existing(
+        &repo,
+        &[
+            ".idx/memory_map.json",
+            ".playwright_god_index/memory_map.json",
+            "memory_map.json",
+        ],
+    );
+    let active = registry.active_for_repo(&repo.to_string_lossy());
+
+    Ok(IndexStatus {
+        has_index: index_dir.is_some(),
+        has_memory_map: memory_map_path.is_some(),
+        index_dir: index_dir.map(|p| p.to_string_lossy().into_owned()),
+        memory_map_path: memory_map_path.map(|p| p.to_string_lossy().into_owned()),
+        active_run_id: active.as_ref().map(|r| r.run_id.clone()),
+        active_run_mode: active.map(|r| r.mode),
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -275,6 +324,25 @@ mod tests {
         std::fs::write(repo.join(".idx/memory_map.json"), b"{}").unwrap();
         let found = first_existing(repo, &[".idx/memory_map.json", "memory_map.json"]);
         assert_eq!(found, Some(repo.join(".idx/memory_map.json")));
+    }
+
+    #[test]
+    fn first_nonempty_dir_returns_first_populated_candidate() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path();
+        std::fs::create_dir_all(repo.join(".idx")).unwrap();
+        std::fs::create_dir_all(repo.join(".playwright_god_index")).unwrap();
+        std::fs::write(repo.join(".playwright_god_index/chroma.sqlite3"), b"").unwrap();
+        let found = first_nonempty_dir(repo, &[".idx", ".playwright_god_index"]);
+        assert_eq!(found, Some(repo.join(".playwright_god_index")));
+    }
+
+    #[test]
+    fn first_nonempty_dir_ignores_empty_directories() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path();
+        std::fs::create_dir_all(repo.join(".idx")).unwrap();
+        assert!(first_nonempty_dir(repo, &[".idx"]).is_none());
     }
 
     #[test]

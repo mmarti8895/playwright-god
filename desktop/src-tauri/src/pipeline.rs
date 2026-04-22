@@ -29,7 +29,7 @@ use tokio::process::Command;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
-use crate::settings::EffectiveSettings;
+use crate::settings::{EffectiveSettings, Settings};
 
 /// Maximum lines forwarded into a single channel before older lines are
 /// spilled to `<repo>/.pg_runs/<run_id>/desktop_log.txt` (D12).
@@ -37,6 +37,25 @@ pub const MAX_LINES_IN_MEMORY: usize = 50_000;
 
 /// Identifier for a single pipeline run (timestamp-based, sortable).
 pub type RunId = String;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum PipelineMode {
+    #[default]
+    Full,
+    IndexOnly,
+}
+
+const FULL_PIPELINE_STEPS: [PipelineStep; 6] = [
+    PipelineStep::Index,
+    PipelineStep::MemoryMap,
+    PipelineStep::FlowGraph,
+    PipelineStep::Plan,
+    PipelineStep::Generate,
+    PipelineStep::Run,
+];
+
+const INDEX_ONLY_STEPS: [PipelineStep; 1] = [PipelineStep::Index];
 
 /// Logical pipeline step. Wire format = kebab-case so the TS union matches
 /// the design.md D4 schema directly.
@@ -52,15 +71,6 @@ pub enum PipelineStep {
 }
 
 impl PipelineStep {
-    pub const ALL: [PipelineStep; 6] = [
-        PipelineStep::Index,
-        PipelineStep::MemoryMap,
-        PipelineStep::FlowGraph,
-        PipelineStep::Plan,
-        PipelineStep::Generate,
-        PipelineStep::Run,
-    ];
-
     /// Returns the CLI subcommand for this step, or `None` if the step is a
     /// "virtual" artifact step (memory-map / flow-graph) produced as a
     /// side-effect of `index`.
@@ -83,6 +93,15 @@ impl PipelineStep {
             PipelineStep::Plan => "plan",
             PipelineStep::Generate => "generate",
             PipelineStep::Run => "run",
+        }
+    }
+}
+
+impl PipelineMode {
+    pub fn steps(self) -> &'static [PipelineStep] {
+        match self {
+            PipelineMode::Full => &FULL_PIPELINE_STEPS,
+            PipelineMode::IndexOnly => &INDEX_ONLY_STEPS,
         }
     }
 }
@@ -153,9 +172,18 @@ impl serde::Serialize for PipelineError {
 /// `cancel_pipeline` can find and stop the active subprocess.
 struct ActiveRun {
     run_id: RunId,
+    repo: String,
+    mode: PipelineMode,
     cancel: CancellationToken,
     /// Notified when the run finishes (success / fail / cancelled).
     done: Arc<Notify>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ActiveRunSnapshot {
+    pub run_id: RunId,
+    pub repo: String,
+    pub mode: PipelineMode,
 }
 
 /// Process-wide state: at most one active run.
@@ -169,7 +197,12 @@ impl PipelineRegistry {
         Self::default()
     }
 
-    fn try_start(&self, run_id: RunId) -> Result<(CancellationToken, Arc<Notify>), PipelineError> {
+    fn try_start(
+        &self,
+        run_id: RunId,
+        repo: String,
+        mode: PipelineMode,
+    ) -> Result<(CancellationToken, Arc<Notify>), PipelineError> {
         let mut guard = self.active.lock();
         if guard.is_some() {
             return Err(PipelineError::Busy);
@@ -178,6 +211,8 @@ impl PipelineRegistry {
         let done = Arc::new(Notify::new());
         *guard = Some(ActiveRun {
             run_id,
+            repo,
+            mode,
             cancel: cancel.clone(),
             done: done.clone(),
         });
@@ -201,6 +236,20 @@ impl PipelineRegistry {
             _ => false,
         }
     }
+
+    pub fn active_for_repo(&self, repo: &str) -> Option<ActiveRunSnapshot> {
+        let guard = self.active.lock();
+        guard.as_ref().and_then(|active| {
+            if active.repo != repo {
+                return None;
+            }
+            Some(ActiveRunSnapshot {
+                run_id: active.run_id.clone(),
+                repo: active.repo.clone(),
+                mode: active.mode,
+            })
+        })
+    }
 }
 
 /// Tauri command wrapper for [`run_pipeline_inner`].
@@ -210,14 +259,16 @@ pub async fn run_pipeline<R: Runtime>(
     registry: State<'_, PipelineRegistry>,
     repo: String,
     on_event: Channel<PipelineEvent>,
+    mode: Option<PipelineMode>,
 ) -> Result<RunId, PipelineError> {
     let pb = PathBuf::from(&repo);
     if !pb.exists() || !pb.is_dir() {
         return Err(PipelineError::BadRepo(repo));
     }
 
+    let mode = mode.unwrap_or_default();
     let run_id = new_run_id();
-    let (cancel, _done) = registry.try_start(run_id.clone())?;
+    let (cancel, _done) = registry.try_start(run_id.clone(), repo.clone(), mode)?;
     let registry_arc: tauri::State<PipelineRegistry> = registry;
     // Clone what we need into the spawned task; the registry is process state.
     let app_clone = app.clone();
@@ -226,6 +277,11 @@ pub async fn run_pipeline<R: Runtime>(
 
     // The settings env (D8). Read here so failure surfaces synchronously.
     let env = EffectiveSettings::load(&app).map(|s| s.into_env()).unwrap_or_default();
+    let cli_path = Settings::load(&app)
+        .ok()
+        .and_then(|s| s.cli_path)
+        .or_else(|| std::env::var("PLAYWRIGHT_GOD_CLI").ok())
+        .unwrap_or_else(|| "playwright-god".into());
 
     // Drop the State guard before spawning so the lock isn't held across
     // .await points.
@@ -236,7 +292,9 @@ pub async fn run_pipeline<R: Runtime>(
             &app_clone,
             &repo_clone,
             &run_id_clone,
+            &cli_path,
             env,
+            mode,
             cancel.clone(),
             on_event,
         )
@@ -274,13 +332,16 @@ async fn run_pipeline_inner<R: Runtime>(
     _app: &AppHandle<R>,
     repo: &str,
     run_id: &str,
+    cli_path: &str,
     env: HashMap<String, String>,
+    mode: PipelineMode,
     cancel: CancellationToken,
     channel: Channel<PipelineEvent>,
 ) -> Result<(), PipelineError> {
+    let steps = mode.steps();
     let _ = channel.send(PipelineEvent::RunStarted {
         run_id: run_id.to_string(),
-        steps: PipelineStep::ALL.iter().map(|s| s.label()).collect(),
+        steps: steps.iter().map(|s| s.label()).collect(),
     });
 
     // Per-run line counter / spill file (D12).
@@ -292,7 +353,7 @@ async fn run_pipeline_inner<R: Runtime>(
     let mut forwarded: usize = 0;
     let mut spill: Option<tokio::fs::File> = None;
 
-    for step in PipelineStep::ALL {
+    for step in steps.iter().copied() {
         if cancel.is_cancelled() {
             let _ = channel.send(PipelineEvent::Cancelled {
                 run_id: run_id.to_string(),
@@ -310,8 +371,7 @@ async fn run_pipeline_inner<R: Runtime>(
             continue;
         };
 
-        let cli_path = std::env::var("PLAYWRIGHT_GOD_CLI").unwrap_or_else(|_| "playwright-god".into());
-        let mut cmd = Command::new(&cli_path);
+        let mut cmd = Command::new(cli_path);
         cmd.arg(sub).arg(repo);
         cmd.envs(env.iter());
         cmd.stdin(Stdio::null());
@@ -462,7 +522,7 @@ mod tests {
     #[test]
     fn pipeline_step_labels_are_stable() {
         let labels: Vec<&'static str> =
-            PipelineStep::ALL.iter().map(|s| s.label()).collect();
+            FULL_PIPELINE_STEPS.iter().map(|s| s.label()).collect();
         assert_eq!(
             labels,
             vec!["index", "memory-map", "flow-graph", "plan", "generate", "run"]
@@ -470,23 +530,51 @@ mod tests {
     }
 
     #[test]
+    fn pipeline_mode_index_only_has_single_step() {
+        let labels: Vec<&'static str> = PipelineMode::IndexOnly
+            .steps()
+            .iter()
+            .map(|s| s.label())
+            .collect();
+        assert_eq!(labels, vec!["index"]);
+    }
+
+    #[test]
     fn pipeline_registry_rejects_concurrent_runs() {
         let reg = PipelineRegistry::new();
-        let _ = reg.try_start("r1".into()).unwrap();
-        match reg.try_start("r2".into()) {
+        let _ = reg
+            .try_start("r1".into(), "/repo".into(), PipelineMode::Full)
+            .unwrap();
+        match reg.try_start("r2".into(), "/repo".into(), PipelineMode::Full) {
             Err(PipelineError::Busy) => {}
             other => panic!("expected Busy, got {other:?}"),
         }
         reg.finish();
         // After finish the next start succeeds.
-        let _ = reg.try_start("r3".into()).unwrap();
+        let _ = reg
+            .try_start("r3".into(), "/repo".into(), PipelineMode::Full)
+            .unwrap();
     }
 
     #[test]
     fn pipeline_registry_cancel_only_when_id_matches() {
         let reg = PipelineRegistry::new();
-        let _ = reg.try_start("r1".into()).unwrap();
+        let _ = reg
+            .try_start("r1".into(), "/repo".into(), PipelineMode::Full)
+            .unwrap();
         assert!(!reg.cancel(Some("other")));
         assert!(reg.cancel(Some("r1")));
+    }
+
+    #[test]
+    fn pipeline_registry_exposes_active_run_snapshot_for_repo() {
+        let reg = PipelineRegistry::new();
+        let _ = reg
+            .try_start("r1".into(), "/repo".into(), PipelineMode::IndexOnly)
+            .unwrap();
+        let snapshot = reg.active_for_repo("/repo").unwrap();
+        assert_eq!(snapshot.run_id, "r1");
+        assert_eq!(snapshot.mode, PipelineMode::IndexOnly);
+        assert!(reg.active_for_repo("/other").is_none());
     }
 }

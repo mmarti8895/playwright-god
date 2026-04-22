@@ -1,17 +1,54 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Panel } from "@/components/Panel";
 import { useUIStore } from "@/state/ui";
-import { ragSearch, type SearchHit } from "@/lib/artifacts";
+import { usePipelineStore } from "@/state/pipeline";
+import {
+  ragSearch,
+  readIndexStatus,
+  type IndexStatus,
+  type SearchHit,
+} from "@/lib/artifacts";
+import { runIndex } from "@/lib/pipeline-run";
 
 export function RagView() {
   const repo = useUIStore((s) => s.activeRepo);
-  const setActiveSection = useUIStore((s) => s.setActiveSection);
+  const version = useUIStore((s) => s.artifactsVersion);
+  const pipelineStatus = usePipelineStore((s) => s.status);
+  const pipelineTotalSteps = usePipelineStore((s) => s.totalSteps);
   const [query, setQuery] = useState("");
   const [topN, setTopN] = useState(10);
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const isIndexing = pipelineStatus === "running" && pipelineTotalSteps === 1;
+
+  useEffect(() => {
+    if (!repo) {
+      setIndexStatus(null);
+      setStatusLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setStatusLoading(true);
+    void readIndexStatus(repo)
+      .then((status) => {
+        if (!cancelled) {
+          setIndexStatus(status);
+          setStatusLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStatusLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repo, version]);
 
   if (!repo) {
     return (
@@ -24,7 +61,7 @@ export function RagView() {
   }
 
   const onSearch = async () => {
-    if (!query.trim() || loading) return;
+    if (!query.trim() || loading || !indexStatus?.has_index) return;
     setLoading(true);
     setError(null);
     setSearched(true);
@@ -37,6 +74,43 @@ export function RagView() {
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") void onSearch();
   };
+
+  if (isIndexing) {
+    return (
+      <Panel className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <div className="text-[15px] font-medium text-ink-700">Indexing repository…</div>
+        <div className="max-w-md text-[13px] text-ink-500">
+          Semantic search will be available as soon as the index-only run completes.
+        </div>
+      </Panel>
+    );
+  }
+
+  if (statusLoading) {
+    return (
+      <Panel className="flex h-full items-center justify-center">
+        <div className="text-[13px] text-ink-500">Checking index status…</div>
+      </Panel>
+    );
+  }
+
+  if (!indexStatus?.has_index) {
+    return (
+      <Panel className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <div className="text-[15px] font-medium text-ink-700">No repository index found</div>
+        <div className="max-w-md text-[13px] text-ink-500">
+          Run Index to build the persisted search index this panel queries.
+        </div>
+        <button
+          type="button"
+          onClick={() => void runIndex(repo)}
+          className="rounded-md bg-ink-900 px-4 py-2 text-[12px] font-medium text-white hover:bg-ink-800"
+        >
+          Run Index
+        </button>
+      </Panel>
+    );
+  }
 
   return (
     <Panel className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
@@ -73,15 +147,14 @@ export function RagView() {
           <div className="font-medium">Search failed</div>
           <div className="mt-1 whitespace-pre-wrap font-mono text-[11px]">{error}</div>
           <div className="mt-2 text-[11px]">
-            If the repository hasn't been indexed yet, run the{" "}
             <button
               type="button"
-              onClick={() => setActiveSection("generation")}
+              onClick={() => void runIndex(repo)}
               className="underline hover:text-rose-700"
             >
-              index step
+              Run Index
             </button>{" "}
-            from the Generation tab.
+            to refresh the repository index if it is missing or stale.
           </div>
         </div>
       )}

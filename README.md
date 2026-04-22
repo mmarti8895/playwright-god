@@ -705,6 +705,9 @@ A native desktop shell for `playwright-god` lives in [`desktop/`](./desktop). It
 Python CLI — never re-implementing pipeline logic — and gives you a single window to
 select a repository, run the full pipeline, and review the artifacts (memory map, flow
 graph, coverage, RAG context, audit log, codegen stream, inspect/discover) it produces.
+The Repository section now exposes both **Run Index** and **Run Pipeline** actions, and the
+Memory Map and RAG views surface the same **Run Index** recovery path whenever persisted
+index artifacts are missing.
 
 ### Screenshots
 

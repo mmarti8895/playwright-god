@@ -70,8 +70,9 @@ export const usePipelineStore = create<PipelineState>((set) => ({
             : {};
         case "finished":
           return {
+            currentStep: null,
             completedSteps: s.completedSteps + 1,
-            stepFraction: 1,
+            stepFraction: 0,
           };
         case "run-finished":
           return {

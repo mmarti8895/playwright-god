@@ -325,7 +325,7 @@ class TestGenerateCommand:
 
         assert result.exit_code == 0
         MockAnthropic.assert_called_once_with(
-            api_key="ant-test", model="claude-3-5-sonnet-20241022"
+            api_key="ant-test", model="claude-3-7-sonnet-latest"
         )
 
     def test_generate_gemini_provider_selected(self, runner, tmp_path):
@@ -895,7 +895,7 @@ class TestPlanCommand:
                 ["plan", "--memory-map", str(map_file), "--provider", "anthropic", "--api-key", "ant-test"],
             )
         assert result.exit_code == 0
-        MockAnthropic.assert_called_once_with(api_key="ant-test", model="claude-3-5-sonnet-20241022")
+        MockAnthropic.assert_called_once_with(api_key="ant-test", model="claude-3-7-sonnet-latest")
 
     def test_plan_gemini_provider_selected(self, runner, tmp_path):
         map_file = tmp_path / "map.json"

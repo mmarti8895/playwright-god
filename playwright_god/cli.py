@@ -447,7 +447,7 @@ def discover(repo_path: str, run_probe: bool, json_output: bool) -> None:
     show_default=True,
     help=(
         "Model name to use with the selected provider "
-        "(e.g. gpt-4o, claude-3-5-sonnet-20241022, gemini-1.5-pro, llama3)."
+        "(e.g. gpt-4o, claude-3-7-sonnet-latest, gemini-1.5-pro, llama3)."
     ),
 )
 @click.option(
@@ -698,7 +698,7 @@ def generate(
             model=resolved_model,
         )
     elif provider == "anthropic":
-        resolved_model = model or "claude-3-5-sonnet-20241022"
+        resolved_model = model or "claude-3-7-sonnet-latest"
         click.echo(f"Using Anthropic model: {resolved_model}", err=True)
         llm_client = AnthropicClient(
             api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""),
@@ -1196,7 +1196,7 @@ def plan(
             model=resolved_model,
         )
     elif provider == "anthropic":
-        resolved_model = model or "claude-3-5-sonnet-20241022"
+        resolved_model = model or "claude-3-7-sonnet-latest"
         click.echo(f"Using Anthropic model: {resolved_model}", err=True)
         llm_client = AnthropicClient(
             api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""),
@@ -1865,7 +1865,7 @@ def refine(
     elif provider == "anthropic":
         llm_client = AnthropicClient(
             api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", ""),
-            model=model or "claude-3-5-sonnet-20241022",
+            model=model or "claude-3-7-sonnet-latest",
         )
     elif provider == "gemini":
         llm_client = GeminiClient(

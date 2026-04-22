@@ -32,8 +32,8 @@ The desktop application SHALL store API keys in the platform's secure credential
 The desktop application SHALL, when spawning a `playwright-god` subprocess, inject the configured provider, model, API key, Ollama URL, and Playwright-CLI timeout into the subprocess environment using the same environment variable names the CLI already reads (`PLAYWRIGHT_GOD_PROVIDER`, `PLAYWRIGHT_GOD_MODEL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OLLAMA_URL`).
 
 #### Scenario: Saved settings reach the CLI
-- **WHEN** the user saves provider=`anthropic`, model=`claude-3-5-sonnet-20241022`, and an API key, then runs the pipeline
-- **THEN** the spawned CLI subprocess receives `PLAYWRIGHT_GOD_PROVIDER=anthropic`, `PLAYWRIGHT_GOD_MODEL=claude-3-5-sonnet-20241022`, and `ANTHROPIC_API_KEY=<key>` in its environment
+- **WHEN** the user saves provider=`anthropic`, model=`claude-3-7-sonnet-latest`, and an API key, then runs the pipeline
+- **THEN** the spawned CLI subprocess receives `PLAYWRIGHT_GOD_PROVIDER=anthropic`, `PLAYWRIGHT_GOD_MODEL=claude-3-7-sonnet-latest`, and `ANTHROPIC_API_KEY=<key>` in its environment
 
 ### Requirement: Reset to defaults
 The Settings widget SHALL provide a "Reset to defaults" action that clears all stored values (including secure-store entries owned by this app) after a confirmation dialog.

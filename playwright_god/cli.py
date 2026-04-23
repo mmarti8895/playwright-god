@@ -108,6 +108,15 @@ def _resolve_provider_config(
     return resolved_provider, resolved_model, resolved_api_key, resolved_ollama_url
 
 
+def _format_llm_exception(exc: Exception) -> str:
+    """Render provider/transport failures as concise CLI-facing messages."""
+
+    message = str(exc).strip()
+    if message:
+        return message
+    return f"{exc.__class__.__name__} while contacting the configured LLM provider."
+
+
 @click.group()
 @click.version_option()
 def cli() -> None:
@@ -881,6 +890,12 @@ def generate(
     except PlaywrightCLIError as exc:
         click.echo(f"Error: {exc}", err=True)
         sys.exit(2)
+    except Exception as exc:  # pragma: no cover - transport/provider failure path
+        click.echo(
+            f"Error: failed to generate test via provider {provider}: {_format_llm_exception(exc)}",
+            err=True,
+        )
+        sys.exit(2)
 
     if output:
         with open(output, "w", encoding="utf-8") as fh:
@@ -1258,13 +1273,20 @@ def plan(
     if ranked_block:
         memory_map_text += "\n\n" + ranked_block
 
-    plan_text = generator.plan(
-        memory_map_text,
-        focus=focus,
-        coverage=coverage_payload,
-        prioritize=prioritize.lower(),
-        flow_graph=loaded_flow_graph,
-    )
+    try:
+        plan_text = generator.plan(
+            memory_map_text,
+            focus=focus,
+            coverage=coverage_payload,
+            prioritize=prioritize.lower(),
+            flow_graph=loaded_flow_graph,
+        )
+    except Exception as exc:  # pragma: no cover - transport/provider failure path
+        click.echo(
+            f"Error: failed to generate plan via provider {provider}: {_format_llm_exception(exc)}",
+            err=True,
+        )
+        sys.exit(2)
 
     if output:
         with open(output, "w", encoding="utf-8") as fh:

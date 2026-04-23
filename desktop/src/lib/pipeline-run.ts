@@ -41,9 +41,15 @@ function applyPipelineEvent(event: PipelineEvent) {
 export async function runManagedPipeline(
   repo: string,
   mode: PipelineMode = "full",
+  description = "",
 ): Promise<string | null> {
   try {
-    return await startPipeline(repo, applyPipelineEvent, mode);
+    return await startPipeline(
+      repo,
+      applyPipelineEvent,
+      mode,
+      mode === "full" ? description : undefined,
+    );
   } catch (error) {
     const label = mode === "index-only" ? "index run" : "pipeline";
     useOutputStore

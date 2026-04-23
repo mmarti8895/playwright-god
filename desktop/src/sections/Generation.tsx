@@ -80,7 +80,7 @@ export function Generation() {
 
   const handleRun = async () => {
     if (!repo || isRunning) return;
-    await runManagedPipeline(repo);
+    await runManagedPipeline(repo, "full", description.trim());
   };
 
   const handleCancel = async () => {

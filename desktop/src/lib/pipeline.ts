@@ -35,6 +35,7 @@ export async function startPipeline(
   repo: string,
   onEvent: (event: PipelineEvent) => void,
   mode: PipelineMode = "full",
+  description?: string,
 ): Promise<string> {
   if (!inTauri()) {
     throw new Error("Desktop pipeline commands are only available inside Tauri.");
@@ -44,6 +45,7 @@ export async function startPipeline(
   return invokeCommand<string>("run_pipeline", {
     repo,
     mode,
+    description: description ?? null,
     onEvent: channel,
   });
 }

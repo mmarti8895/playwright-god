@@ -7,15 +7,12 @@
 //!
 //! Sequential: `index → memory-map → flow-graph → plan → generate → run`.
 //!
-//! Note: in the current Python CLI, `memory-map` and `flow-graph` are
-//! *artifacts* produced as side-effects of `index`, not separate subcommands.
-//! We surface them as discrete UI steps anyway (they emit `Started`/`Finished`
-//! events but do not spawn a process) so the progress bar and the spec's
-//! step list line up. If the CLI later grows dedicated subcommands they can
-//! be wired in without breaking the event schema.
+//! Note: `memory-map` remains a virtual artifact step because it is produced as
+//! a side-effect of `index --memory-map`, while `flow-graph` now shells out to
+//! `playwright-god graph extract`. The UI still sees a stable six-step pipeline.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 
@@ -71,20 +68,6 @@ pub enum PipelineStep {
 }
 
 impl PipelineStep {
-    /// Returns the CLI subcommand for this step, or `None` if the step is a
-    /// "virtual" artifact step (memory-map / flow-graph) produced as a
-    /// side-effect of `index`.
-    pub fn cli_subcommand(self) -> Option<&'static str> {
-        match self {
-            PipelineStep::Index => Some("index"),
-            PipelineStep::MemoryMap => None,
-            PipelineStep::FlowGraph => None,
-            PipelineStep::Plan => Some("plan"),
-            PipelineStep::Generate => Some("generate"),
-            PipelineStep::Run => Some("run"),
-        }
-    }
-
     pub fn label(self) -> &'static str {
         match self {
             PipelineStep::Index => "index",
@@ -94,6 +77,126 @@ impl PipelineStep {
             PipelineStep::Generate => "generate",
             PipelineStep::Run => "run",
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct PipelinePaths {
+    repo: PathBuf,
+    persist_dir: PathBuf,
+    memory_map_path: PathBuf,
+    flow_graph_path: PathBuf,
+    run_artifact_dir: PathBuf,
+    run_root: PathBuf,
+    plan_path: PathBuf,
+    generated_spec_path: PathBuf,
+}
+
+impl PipelinePaths {
+    fn new(repo: &str, run_id: &str) -> Self {
+        let repo = PathBuf::from(repo);
+        let persist_dir = repo.join(".idx");
+        let run_artifact_dir = repo.join(".pg_runs");
+        let run_root = run_artifact_dir.join(run_id);
+        Self {
+            repo,
+            persist_dir: persist_dir.clone(),
+            memory_map_path: persist_dir.join("memory_map.json"),
+            flow_graph_path: persist_dir.join("flow_graph.json"),
+            run_artifact_dir,
+            run_root: run_root.clone(),
+            plan_path: run_root.join("plan.md"),
+            generated_spec_path: run_root.join("generated.spec.ts"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum StepExecution {
+    Virtual,
+    Spawn { cwd: PathBuf, args: Vec<String> },
+}
+
+fn path_arg(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn build_step_execution(
+    step: PipelineStep,
+    paths: &PipelinePaths,
+    description: &str,
+) -> StepExecution {
+    let repo = path_arg(&paths.repo);
+    let persist_dir = path_arg(&paths.persist_dir);
+    let memory_map_path = path_arg(&paths.memory_map_path);
+    let flow_graph_path = path_arg(&paths.flow_graph_path);
+    let plan_path = path_arg(&paths.plan_path);
+    let generated_spec_path = path_arg(&paths.generated_spec_path);
+    let run_artifact_dir = path_arg(&paths.run_artifact_dir);
+
+    match step {
+        PipelineStep::Index => StepExecution::Spawn {
+            cwd: paths.repo.clone(),
+            args: vec![
+                "index".into(),
+                repo,
+                "--persist-dir".into(),
+                persist_dir,
+                "--memory-map".into(),
+                memory_map_path,
+            ],
+        },
+        PipelineStep::MemoryMap => StepExecution::Virtual,
+        PipelineStep::FlowGraph => StepExecution::Spawn {
+            cwd: paths.repo.clone(),
+            args: vec![
+                "graph".into(),
+                "extract".into(),
+                repo,
+                "--output".into(),
+                flow_graph_path,
+                "--persist-dir".into(),
+                persist_dir,
+            ],
+        },
+        PipelineStep::Plan => StepExecution::Spawn {
+            cwd: paths.repo.clone(),
+            args: vec![
+                "plan".into(),
+                "--persist-dir".into(),
+                persist_dir,
+                "--memory-map".into(),
+                memory_map_path,
+                "--flow-graph".into(),
+                flow_graph_path,
+                "-o".into(),
+                plan_path,
+            ],
+        },
+        PipelineStep::Generate => StepExecution::Spawn {
+            cwd: paths.repo.clone(),
+            args: vec![
+                "generate".into(),
+                description.into(),
+                "--persist-dir".into(),
+                persist_dir,
+                "--memory-map".into(),
+                memory_map_path,
+                "-o".into(),
+                generated_spec_path,
+            ],
+        },
+        PipelineStep::Run => StepExecution::Spawn {
+            cwd: paths.repo.clone(),
+            args: vec![
+                "run".into(),
+                generated_spec_path,
+                "--target-dir".into(),
+                repo,
+                "--artifact-dir".into(),
+                run_artifact_dir,
+            ],
+        },
     }
 }
 
@@ -260,6 +363,7 @@ pub async fn run_pipeline<R: Runtime>(
     repo: String,
     on_event: Channel<PipelineEvent>,
     mode: Option<PipelineMode>,
+    description: Option<String>,
 ) -> Result<RunId, PipelineError> {
     let pb = PathBuf::from(&repo);
     if !pb.exists() || !pb.is_dir() {
@@ -295,6 +399,7 @@ pub async fn run_pipeline<R: Runtime>(
             &cli_path,
             env,
             mode,
+            description.clone(),
             cancel.clone(),
             on_event,
         )
@@ -335,23 +440,23 @@ async fn run_pipeline_inner<R: Runtime>(
     cli_path: &str,
     env: HashMap<String, String>,
     mode: PipelineMode,
+    description: Option<String>,
     cancel: CancellationToken,
     channel: Channel<PipelineEvent>,
 ) -> Result<(), PipelineError> {
     let steps = mode.steps();
+    let paths = PipelinePaths::new(repo, run_id);
     let _ = channel.send(PipelineEvent::RunStarted {
         run_id: run_id.to_string(),
         steps: steps.iter().map(|s| s.label()).collect(),
     });
 
     // Per-run line counter / spill file (D12).
-    let spill_path = PathBuf::from(repo)
-        .join(".pg_runs")
-        .join(run_id)
-        .join("desktop_log.txt");
+    let spill_path = paths.run_root.join("desktop_log.txt");
     let _ = tokio::fs::create_dir_all(spill_path.parent().unwrap()).await;
     let mut forwarded: usize = 0;
     let mut spill: Option<tokio::fs::File> = None;
+    let description = description.unwrap_or_default();
 
     for step in steps.iter().copied() {
         if cancel.is_cancelled() {
@@ -362,8 +467,8 @@ async fn run_pipeline_inner<R: Runtime>(
         }
         let _ = channel.send(PipelineEvent::Started { step: step.label() });
 
-        let Some(sub) = step.cli_subcommand() else {
-            // Virtual artifact step: nothing to spawn.
+        let execution = build_step_execution(step, &paths, &description);
+        let StepExecution::Spawn { cwd, args } = execution else {
             let _ = channel.send(PipelineEvent::Finished {
                 step: step.label(),
                 exit_code: 0,
@@ -372,7 +477,8 @@ async fn run_pipeline_inner<R: Runtime>(
         };
 
         let mut cmd = Command::new(cli_path);
-        cmd.arg(sub).arg(repo);
+        cmd.args(&args);
+        cmd.current_dir(cwd);
         cmd.envs(env.iter());
         cmd.stdin(Stdio::null());
         cmd.stdout(Stdio::piped());
@@ -384,7 +490,7 @@ async fn run_pipeline_inner<R: Runtime>(
                 let _ = channel.send(PipelineEvent::Failed {
                     step: step.label(),
                     exit_code: -1,
-                    message: format!("failed to spawn `{cli_path} {sub}`: {e}"),
+                    message: format!("failed to spawn `{cli_path} {}`: {e}", args.join(" ")),
                 });
                 return Ok(());
             }
@@ -537,6 +643,117 @@ mod tests {
             .map(|s| s.label())
             .collect();
         assert_eq!(labels, vec!["index"]);
+    }
+
+    #[test]
+    fn pipeline_paths_use_idx_and_pg_runs_layout() {
+        let paths = PipelinePaths::new("/repo", "run-1");
+        assert_eq!(paths.persist_dir, PathBuf::from("/repo/.idx"));
+        assert_eq!(paths.memory_map_path, PathBuf::from("/repo/.idx/memory_map.json"));
+        assert_eq!(paths.flow_graph_path, PathBuf::from("/repo/.idx/flow_graph.json"));
+        assert_eq!(paths.plan_path, PathBuf::from("/repo/.pg_runs/run-1/plan.md"));
+        assert_eq!(
+            paths.generated_spec_path,
+            PathBuf::from("/repo/.pg_runs/run-1/generated.spec.ts")
+        );
+    }
+
+    #[test]
+    fn index_step_builds_persist_and_memory_map_args() {
+        let paths = PipelinePaths::new("/repo", "run-1");
+        let execution = build_step_execution(PipelineStep::Index, &paths, "");
+        let StepExecution::Spawn { args, .. } = execution else {
+            panic!("expected spawned index step");
+        };
+        assert_eq!(
+            args,
+            vec![
+                "index".to_string(),
+                path_arg(&paths.repo),
+                "--persist-dir".to_string(),
+                path_arg(&paths.persist_dir),
+                "--memory-map".to_string(),
+                path_arg(&paths.memory_map_path),
+            ]
+        );
+    }
+
+    #[test]
+    fn full_pipeline_steps_match_cli_contract() {
+        let paths = PipelinePaths::new("/repo", "run-1");
+
+        let flow_graph = build_step_execution(PipelineStep::FlowGraph, &paths, "");
+        let StepExecution::Spawn { args: flow_args, .. } = flow_graph else {
+            panic!("expected spawned flow-graph step");
+        };
+        assert_eq!(
+            flow_args,
+            vec![
+                "graph".to_string(),
+                "extract".to_string(),
+                path_arg(&paths.repo),
+                "--output".to_string(),
+                path_arg(&paths.flow_graph_path),
+                "--persist-dir".to_string(),
+                path_arg(&paths.persist_dir),
+            ]
+        );
+
+        let plan = build_step_execution(PipelineStep::Plan, &paths, "");
+        let StepExecution::Spawn { args: plan_args, .. } = plan else {
+            panic!("expected spawned plan step");
+        };
+        assert_eq!(
+            plan_args,
+            vec![
+                "plan".to_string(),
+                "--persist-dir".to_string(),
+                path_arg(&paths.persist_dir),
+                "--memory-map".to_string(),
+                path_arg(&paths.memory_map_path),
+                "--flow-graph".to_string(),
+                path_arg(&paths.flow_graph_path),
+                "-o".to_string(),
+                path_arg(&paths.plan_path),
+            ]
+        );
+
+        let generate = build_step_execution(PipelineStep::Generate, &paths, "login flow");
+        let StepExecution::Spawn {
+            args: generate_args, ..
+        } = generate
+        else {
+            panic!("expected spawned generate step");
+        };
+        assert_eq!(
+            generate_args,
+            vec![
+                "generate".to_string(),
+                "login flow".to_string(),
+                "--persist-dir".to_string(),
+                path_arg(&paths.persist_dir),
+                "--memory-map".to_string(),
+                path_arg(&paths.memory_map_path),
+                "-o".to_string(),
+                path_arg(&paths.generated_spec_path),
+            ]
+        );
+
+        let run = build_step_execution(PipelineStep::Run, &paths, "");
+        let StepExecution::Spawn { args: run_args, .. } = run else {
+            panic!("expected spawned run step");
+        };
+        assert_eq!(
+            run_args,
+            vec![
+                "run".to_string(),
+                path_arg(&paths.generated_spec_path),
+                "--target-dir".to_string(),
+                path_arg(&paths.repo),
+                "--artifact-dir".to_string(),
+                path_arg(&paths.run_artifact_dir),
+            ]
+        );
     }
 
     #[test]

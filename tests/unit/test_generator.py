@@ -385,6 +385,46 @@ class TestOpenAIClient:
         assert result == "// generated test"
         mock_openai.OpenAI.return_value.chat.completions.create.assert_called_once()
 
+    def test_complete_retries_transient_connection_error(self):
+        mock_openai = MagicMock()
+        retry_error = type("APIConnectionError", (Exception,), {})
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "// generated after retry"
+        mock_openai.OpenAI.return_value.chat.completions.create.side_effect = [
+            retry_error("Connection error."),
+            mock_response,
+        ]
+
+        with (
+            patch.dict("sys.modules", {"openai": mock_openai}),
+            patch("playwright_god.generator.time.sleep") as mock_sleep,
+        ):
+            client = OpenAIClient(api_key="test-key", model="gpt-4o")
+            result = client.complete("some prompt")
+
+        assert result == "// generated after retry"
+        assert mock_openai.OpenAI.return_value.chat.completions.create.call_count == 2
+        mock_sleep.assert_called_once_with(0.5)
+
+    def test_complete_raises_after_retry_budget_exhausted(self):
+        mock_openai = MagicMock()
+        retry_error = type("APIConnectionError", (Exception,), {})
+        mock_openai.OpenAI.return_value.chat.completions.create.side_effect = [
+            retry_error("Connection error."),
+            retry_error("Connection error."),
+        ]
+
+        with (
+            patch.dict("sys.modules", {"openai": mock_openai}),
+            patch("playwright_god.generator.time.sleep") as mock_sleep,
+        ):
+            client = OpenAIClient(api_key="test-key", model="gpt-4o")
+            with pytest.raises(retry_error, match="Connection error."):
+                client.complete("some prompt")
+
+        assert mock_openai.OpenAI.return_value.chat.completions.create.call_count == 2
+        mock_sleep.assert_called_once_with(0.5)
+
 
 # ---------------------------------------------------------------------------
 # AnthropicClient

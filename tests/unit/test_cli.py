@@ -279,6 +279,33 @@ class TestGenerateCommand:
         assert result.exit_code == 0
         MockOpenAI.assert_called_once_with(api_key="sk-test", model="gpt-4o")
 
+    def test_generate_provider_disconnect_exits_cleanly(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = RuntimeError(
+                "Server disconnected without sending a response."
+            )
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "login flow", "-d", persist,
+                    "--provider", "openai", "--api-key", "sk-test",
+                ],
+            )
+
+        assert result.exit_code == 2
+        assert "failed to generate test via provider openai" in result.output
+        assert "Server disconnected without sending a response." in result.output
+        assert "Traceback" not in result.output
+
     def test_generate_openai_custom_model(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
         with (
@@ -879,6 +906,27 @@ class TestPlanCommand:
             )
         assert result.exit_code == 0
         MockOpenAI.assert_called_once_with(api_key="sk-test", model="gpt-4o")
+
+    def test_plan_provider_disconnect_exits_cleanly(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = RuntimeError(
+                "Server disconnected without sending a response."
+            )
+            MockOpenAI.return_value = mock_client
+            result = runner.invoke(
+                cli,
+                ["plan", "--memory-map", str(map_file), "--provider", "openai", "--api-key", "sk-test"],
+            )
+        assert result.exit_code == 2
+        assert "failed to generate plan via provider openai" in result.output
+        assert "Server disconnected without sending a response." in result.output
+        assert "Traceback" not in result.output
 
     def test_plan_anthropic_provider_selected(self, runner, tmp_path):
         map_file = tmp_path / "map.json"

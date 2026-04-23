@@ -66,8 +66,14 @@ describe("runManagedPipeline", () => {
       return "run-2";
     });
 
-    await expect(runManagedPipeline("/repo")).resolves.toBe("run-2");
+    await expect(runManagedPipeline("/repo", "full", "login flow")).resolves.toBe("run-2");
     expect(usePipelineStore.getState().status).toBe("failed");
+    expect(vi.mocked(startPipeline)).toHaveBeenCalledWith(
+      "/repo",
+      expect.any(Function),
+      "full",
+      "login flow",
+    );
     expect(useOutputStore.getState().lines.map((line) => line.text)).toEqual(
       expect.arrayContaining([
         "[generate] broken prompt",
@@ -93,6 +99,7 @@ describe("runManagedPipeline", () => {
       "/repo",
       expect.any(Function),
       "index-only",
+      undefined,
     );
   });
 

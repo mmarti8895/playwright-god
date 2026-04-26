@@ -74,6 +74,52 @@ class TestAddChunks:
         in_memory_indexer.add_chunks([chunk])  # duplicate
         assert in_memory_indexer.count() == 1
 
+    def test_add_chunks_splits_upserts_when_batch_limit_is_small(self, in_memory_indexer, monkeypatch):
+        chunks = [make_chunk(file_path=f"f{i}.py", chunk_id=f"split{i}") for i in range(7)]
+        monkeypatch.setattr(in_memory_indexer, "_resolve_max_upsert_batch_size", lambda: 3)
+
+        original_upsert = in_memory_indexer._collection.upsert
+        batch_sizes: list[int] = []
+
+        def capped_upsert(*, ids, embeddings, metadatas, documents):
+            batch_sizes.append(len(ids))
+            if len(ids) > 3:
+                raise ValueError("batch too large")
+            return original_upsert(
+                ids=ids,
+                embeddings=embeddings,
+                metadatas=metadatas,
+                documents=documents,
+            )
+
+        monkeypatch.setattr(in_memory_indexer._collection, "upsert", capped_upsert)
+
+        in_memory_indexer.add_chunks(chunks)
+
+        assert batch_sizes == [3, 3, 1]
+        assert in_memory_indexer.count() == 7
+
+    def test_resolve_max_upsert_batch_size_falls_back_when_unavailable(self, in_memory_indexer, monkeypatch):
+        class NoBatchSource:
+            pass
+
+        monkeypatch.setattr(in_memory_indexer, "_client", NoBatchSource())
+        monkeypatch.setattr(in_memory_indexer, "_collection", NoBatchSource())
+
+        assert in_memory_indexer._resolve_max_upsert_batch_size() == 5000
+
+    def test_resolve_max_upsert_batch_size_uses_client_limit(self, in_memory_indexer, monkeypatch):
+        class ClientWithLimit:
+            max_batch_size = 11
+
+        class CollectionNoLimit:
+            pass
+
+        monkeypatch.setattr(in_memory_indexer, "_client", ClientWithLimit())
+        monkeypatch.setattr(in_memory_indexer, "_collection", CollectionNoLimit())
+
+        assert in_memory_indexer._resolve_max_upsert_batch_size() == 11
+
 
 class TestSearch:
     def test_search_returns_results(self, in_memory_indexer):

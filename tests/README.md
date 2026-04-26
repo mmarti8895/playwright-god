@@ -1,3 +1,5 @@
+# https://nihadmemmedli.github.io/quorvex_ai/ achieves the goal of the repo, use that instead, archieving. 
+
 # Test Suite
 
 This directory contains deterministic validation for the `playwright-god` CLI, repository-analysis pipeline, and sample Playwright flows.

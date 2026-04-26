@@ -37,7 +37,7 @@ async fn cli_json<R: tauri::Runtime>(
     args: &[&str],
 ) -> Result<Value, String> {
     let settings = Settings::load(app).map_err(|e| e.to_string())?;
-    let effective = EffectiveSettings::load(app).map_err(|e| e.to_string())?;
+    let effective = EffectiveSettings::load_for_repo(app, repo).map_err(|e| e.to_string())?;
     let cli = settings
         .cli_path
         .clone()

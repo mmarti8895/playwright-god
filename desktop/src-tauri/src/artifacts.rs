@@ -40,7 +40,7 @@ fn first_existing(repo: &Path, candidates: &[&str]) -> Option<PathBuf> {
 /// Lexicographically-largest subdirectory of `<repo>/.pg_runs/` (timestamps
 /// sort correctly as strings). Returns `None` if `.pg_runs/` is missing or
 /// empty.
-fn latest_run_dir(repo: &Path) -> Option<PathBuf> {
+pub(crate) fn latest_run_dir(repo: &Path) -> Option<PathBuf> {
     let runs = repo.join(".pg_runs");
     if !runs.is_dir() {
         return None;
@@ -56,6 +56,40 @@ fn latest_run_dir(repo: &Path) -> Option<PathBuf> {
         }
     }
     best
+}
+
+/// Path to `generated.spec.ts` inside the newest `.pg_runs/<run-id>/`
+/// directory. Returns `None` if `.pg_runs/` is absent or no run contains
+/// the spec file.
+pub(crate) fn latest_spec_path(repo: &Path) -> Option<PathBuf> {
+    // Walk all run dirs newest-first (lexicographic descending) until we find one
+    // that contains the spec file.
+    let runs = repo.join(".pg_runs");
+    if !runs.is_dir() {
+        return None;
+    }
+    let mut dirs: Vec<PathBuf> = fs::read_dir(&runs)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    dirs.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+    for dir in dirs {
+        let spec = dir.join("generated.spec.ts");
+        if spec.is_file() {
+            return Some(spec);
+        }
+    }
+    None
+}
+
+/// Tauri command: return the path to the most-recent generated spec file, or
+/// `null` when none exists.
+#[tauri::command]
+pub fn read_latest_spec_path(repo: String) -> Result<Option<String>, String> {
+    let repo = validate_repo(&repo)?;
+    Ok(latest_spec_path(&repo).map(|p| p.to_string_lossy().into_owned()))
 }
 
 fn validate_repo(repo: &str) -> Result<PathBuf, String> {
@@ -211,7 +245,7 @@ pub async fn rag_search<R: tauri::Runtime>(
     let top = top_n.unwrap_or(10).max(1).min(50);
 
     let settings = Settings::load(&app).map_err(|e| e.to_string())?;
-    let effective = EffectiveSettings::load(&app).map_err(|e| e.to_string())?;
+    let effective = EffectiveSettings::load_for_repo(&app, &repo_path).map_err(|e| e.to_string())?;
     let cli = settings
         .cli_path
         .clone()

@@ -14,11 +14,13 @@ import {
   DEFAULT_SETTINGS,
   PROVIDERS,
   type CliStatus,
+  type EffectiveSettingsSummary,
   type Provider,
   type SecretsHealth,
   type Settings as SettingsT,
   detectCli,
   deleteSecret,
+  getEffectiveSettingsSummary,
   getSecret,
   getSettings,
   resetSettings,
@@ -27,11 +29,13 @@ import {
   setSecret,
   validateSettings,
 } from "@/lib/settings";
+import { useUIStore } from "@/state/ui";
 
 const inTauri = (): boolean =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export function Settings() {
+  const activeRepo = useUIStore((s) => s.activeRepo);
   const [settings, setSettings] = useState<SettingsT>(DEFAULT_SETTINGS);
   const [apiKey, setApiKey] = useState<string>("");
   const [apiKeyDirty, setApiKeyDirty] = useState(false);
@@ -41,6 +45,7 @@ export function Settings() {
   const [error, setError] = useState<string | null>(null);
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [secrets, setSecrets] = useState<SecretsHealth | null>(null);
+  const [effective, setEffective] = useState<EffectiveSettingsSummary | null>(null);
 
   // Load existing settings + status on mount.
   useEffect(() => {
@@ -49,13 +54,14 @@ export function Settings() {
       setSettings(s);
       setCli(await detectCli());
       setSecrets(await secretsHealth());
+      setEffective(await getEffectiveSettingsSummary(activeRepo));
       const env = apiKeyEnvVar(s.provider);
       if (env) {
         const v = await getSecret(env);
         setApiKey(v ?? "");
       }
     })();
-  }, []);
+  }, [activeRepo]);
 
   // When the provider changes, refresh the masked key for the new provider.
   useEffect(() => {
@@ -116,6 +122,7 @@ export function Settings() {
       }
       setCli(await detectCli());
       setSecrets(await secretsHealth());
+      setEffective(await getEffectiveSettingsSummary(activeRepo));
       setSavedAt(Date.now());
     } catch (e) {
       setError((e as Error).message ?? String(e));
@@ -133,6 +140,7 @@ export function Settings() {
       setApiKeyDirty(false);
       setCli(await detectCli());
       setSecrets(await secretsHealth());
+      setEffective(await getEffectiveSettingsSummary(activeRepo));
       setSavedAt(Date.now());
     } finally {
       setSaving(false);
@@ -158,6 +166,22 @@ export function Settings() {
           The OS keyring was unavailable; API keys are saved to a local
           plaintext file (mode 0600) at{" "}
           <code>{secrets.fallback_path ?? "<app-config>/secrets.json"}</code>.
+        </div>
+      )}
+      {effective && (
+        <div className="rounded-md border border-ink-200 bg-ink-50/70 px-3 py-2 text-[12px] text-ink-700">
+          Runtime resolution: provider <strong>{effective.provider ?? "<unset>"}</strong>
+          <span className="text-ink-500"> ({effective.provider_source})</span>, model{" "}
+          <strong>{effective.model ?? "<default>"}</strong>
+          <span className="text-ink-500"> ({effective.model_source})</span>
+          {effective.selected_api_key_env && (
+            <>
+              , key <strong>{effective.selected_api_key_env}</strong>
+              <span className="text-ink-500"> ({effective.selected_api_key_source})</span>
+              {effective.selected_api_key_present ? " available" : " missing"}
+            </>
+          )}
+          {!effective.selected_api_key_env && " (no API key required for current provider)"}
         </div>
       )}
 
@@ -276,6 +300,58 @@ export function Settings() {
                 Browse…
               </button>
             </div>
+          </Field>
+
+          <Field
+            label="Playwright project directory"
+            hint="Override the --target-dir passed to playwright-god run. Leave blank to use the selected repo root. Set this when your package.json (with @playwright/test) lives in a subdirectory."
+          >
+            <input
+              className={inputCls}
+              value={settings.playwright_target_dir ?? ""}
+              onChange={(e) =>
+                handleField("playwright_target_dir", e.target.value || null)
+              }
+              placeholder="e.g. /home/user/myproject/frontend"
+            />
+          </Field>
+
+          <Field
+            label="LLM retry attempts"
+            hint="Maximum number of attempts for a transient LLM failure (includes the first call). Set to 0 to disable retries."
+          >
+            <input
+              type="number"
+              min={0}
+              step={1}
+              className={inputCls}
+              value={settings.llm_retry_max}
+              onChange={(e) =>
+                handleField(
+                  "llm_retry_max",
+                  Math.max(0, Number.parseInt(e.target.value, 10) || 0),
+                )
+              }
+            />
+          </Field>
+
+          <Field
+            label="LLM retry initial delay (seconds)"
+            hint="Initial backoff delay for LLM retries. Each subsequent retry doubles the delay (capped at 60 s)."
+          >
+            <input
+              type="number"
+              min={0}
+              step={0.1}
+              className={inputCls}
+              value={settings.llm_retry_delay_s}
+              onChange={(e) =>
+                handleField(
+                  "llm_retry_delay_s",
+                  Math.max(0, Number.parseFloat(e.target.value) || 0),
+                )
+              }
+            />
           </Field>
 
           {validationError && (

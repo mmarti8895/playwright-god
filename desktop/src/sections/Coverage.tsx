@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import clsx from "clsx";
 import { Panel } from "@/components/Panel";
 import { useUIStore } from "@/state/ui";
+import { usePipelineStore } from "@/state/pipeline";
 import {
   readCoverage,
   type CoverageFile,
   type CoverageReport,
   type CoverageRouteDetail,
 } from "@/lib/artifacts";
+import { runCoverage, cancelCoverage, readLatestSpecPath } from "@/lib/coverage-run";
 import { exportRows } from "@/lib/csv";
 
 interface FileRow {
@@ -26,25 +28,49 @@ export function CoverageView() {
   const version = useUIStore((s) => s.artifactsVersion);
   const setActiveSection = useUIStore((s) => s.setActiveSection);
   const setGapPrompt = useUIStore((s) => s.setGenerationPrompt);
+  const bumpArtifactsVersion = useUIStore((s) => s.bumpArtifactsVersion);
+  const coverageRun = useUIStore((s) => s.coverageRun);
+  const setCoverageRunStatus = useUIStore((s) => s.setCoverageRunStatus);
+  const appendCoverageLogLine = useUIStore((s) => s.appendCoverageLogLine);
+  const clearCoverageRun = useUIStore((s) => s.clearCoverageRun);
+
+  const pipelineRunning = usePipelineStore((s) => s.status === "running");
+
   const [report, setReport] = useState<CoverageReport | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("percent");
   const [sortAsc, setSortAsc] = useState(true);
+  const [specAvailable, setSpecAvailable] = useState<boolean | null>(null);
+  const [logExpanded, setLogExpanded] = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!repo) {
       setReport(null);
+      setLoadError(null);
+      setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    void readCoverage(repo).then((r) => {
-      if (!cancelled) {
-        setReport(r);
-        setLoading(false);
-      }
-    });
+    setLoadError(null);
+    setReport(null);
+    void readCoverage(repo)
+      .then((r) => {
+        if (!cancelled) {
+          setReport(r);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setReport(null);
+          setLoading(false);
+          setLoadError(error instanceof Error ? error.message : String(error));
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -55,6 +81,67 @@ export function CoverageView() {
     const t = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(t);
   }, [toast]);
+
+  // Check whether a generated spec exists whenever the repo or artifacts change.
+  useEffect(() => {
+    if (!repo) { setSpecAvailable(null); return; }
+    setSpecAvailable(null);
+    void readLatestSpecPath(repo).then((p) => setSpecAvailable(p !== null));
+  }, [repo, version]);
+
+  // Auto-scroll log panel to the bottom when new lines arrive.
+  useEffect(() => {
+    if (coverageRun.status === "running") {
+      logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [coverageRun.logLines, coverageRun.status]);
+
+  const onRunCoverage = async () => {
+    if (!repo) return;
+    setCoverageRunStatus("running");
+    setLogExpanded(true);
+    try {
+      await runCoverage(repo, (event) => {
+        switch (event.type) {
+          case "run-started":
+            appendCoverageLogLine(`▶ Starting coverage run: ${event.spec_path}`);
+            break;
+          case "log-line":
+            appendCoverageLogLine(event.line);
+            break;
+          case "finished":
+            setCoverageRunStatus("done");
+            setLogExpanded(false);
+            bumpArtifactsVersion();
+            break;
+          case "cancelled":
+            appendCoverageLogLine(
+              "Run cancelled — partial coverage results may exist in .pg_runs/",
+            );
+            setCoverageRunStatus("idle");
+            break;
+          case "failed":
+            appendCoverageLogLine(`✖ ${event.message}`);
+            setCoverageRunStatus("error");
+            break;
+        }
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      appendCoverageLogLine(`✖ ${msg}`);
+      setCoverageRunStatus("error");
+    }
+  };
+
+  const onCancelCoverage = async () => {
+    await cancelCoverage();
+  };
+
+  const onClearCoverage = () => {
+    clearCoverageRun();
+    setReport(null);
+    setLoadError(null);
+  };
 
   const fileRows = useMemo<FileRow[]>(
     () => buildFileRows(report?.files ?? {}),
@@ -146,6 +233,28 @@ export function CoverageView() {
           <span className="font-mono"> coverage_merged.json</span> in the latest
           <span className="font-mono"> .pg_runs/</span> directory.
         </div>
+        {loadError && (
+          <div className="max-w-md rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-left text-[12px] text-rose-900">
+            <div className="font-medium">Failed to read coverage data</div>
+            <div className="mt-1 whitespace-pre-wrap font-mono text-[11px]">{loadError}</div>
+          </div>
+        )}
+        <CoverageToolbar
+          status={coverageRun.status}
+          specAvailable={specAvailable ?? false}
+          pipelineRunning={pipelineRunning}
+          onRun={onRunCoverage}
+          onCancel={onCancelCoverage}
+          onClear={onClearCoverage}
+        />
+        {(coverageRun.status !== "idle" || coverageRun.logLines.length > 0) && (
+          <LogPanel
+            lines={coverageRun.logLines}
+            expanded={logExpanded || coverageRun.status === "running"}
+            onToggle={() => setLogExpanded((e) => !e)}
+            logEndRef={logEndRef}
+          />
+        )}
       </Panel>
     );
   }
@@ -158,6 +267,14 @@ export function CoverageView() {
 
   return (
     <Panel className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+      <CoverageToolbar
+        status={coverageRun.status}
+        specAvailable={specAvailable ?? false}
+        pipelineRunning={pipelineRunning}
+        onRun={onRunCoverage}
+        onCancel={onCancelCoverage}
+        onClear={onClearCoverage}
+      />
       {totals && (
         <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12px] text-ink-500">
           <span>
@@ -361,6 +478,15 @@ export function CoverageView() {
           {toast}
         </div>
       )}
+
+      {(coverageRun.status !== "idle" || coverageRun.logLines.length > 0) && (
+        <LogPanel
+          lines={coverageRun.logLines}
+          expanded={logExpanded || coverageRun.status === "running"}
+          onToggle={() => setLogExpanded((e) => !e)}
+          logEndRef={logEndRef}
+        />
+      )}
     </Panel>
   );
 }
@@ -437,6 +563,122 @@ function RouteRow({ route }: { route: CoverageRouteDetail }) {
         {route.covered ? "covered" : "uncovered"}
       </span>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Coverage run controls
+// ---------------------------------------------------------------------------
+
+interface RunCoverageButtonProps {
+  status: string;
+  specAvailable: boolean;
+  pipelineRunning: boolean;
+  onRun: () => void;
+}
+
+function RunCoverageButton({ status, specAvailable, pipelineRunning, onRun }: RunCoverageButtonProps) {
+  const isRunning = status === "running";
+  const disabled = isRunning || !specAvailable || pipelineRunning;
+  const title = !specAvailable
+    ? "No generated spec found. Run the full pipeline first."
+    : pipelineRunning
+    ? "Pipeline is running. Wait for it to finish."
+    : undefined;
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title={title}
+      onClick={onRun}
+      className={clsx(
+        "rounded-md px-3 py-1.5 text-[12px] font-medium",
+        disabled
+          ? "cursor-not-allowed bg-ink-100 text-ink-400"
+          : "bg-ink-900 text-white hover:bg-ink-800",
+      )}
+    >
+      {isRunning ? "Running…" : "Run Coverage"}
+    </button>
+  );
+}
+
+interface CoverageToolbarProps extends RunCoverageButtonProps {
+  onCancel: () => void;
+  onClear: () => void;
+}
+
+function CoverageToolbar({
+  status,
+  specAvailable,
+  pipelineRunning,
+  onRun,
+  onCancel,
+  onClear,
+}: CoverageToolbarProps) {
+  return (
+    <div className="flex items-center gap-2">
+      {status !== "running" && (
+        <RunCoverageButton
+          status={status}
+          specAvailable={specAvailable}
+          pipelineRunning={pipelineRunning}
+          onRun={onRun}
+        />
+      )}
+      {status === "running" && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5
+                     text-[12px] font-medium text-rose-700 hover:bg-rose-100"
+        >
+          Cancel
+        </button>
+      )}
+      {(status === "done" || status === "error") && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="rounded-md border border-ink-200 bg-white px-3 py-1.5
+                     text-[12px] font-medium text-ink-600 hover:bg-ink-50"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
+interface LogPanelProps {
+  lines: string[];
+  expanded: boolean;
+  onToggle: () => void;
+  logEndRef: React.RefObject<HTMLDivElement>;
+}
+
+function LogPanel({ lines, expanded, onToggle, logEndRef }: LogPanelProps) {
+  return (
+    <div className="rounded-xl border border-ink-200/60 bg-ink-50 text-[11px]">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between px-3 py-2 text-ink-600
+                   hover:text-ink-800"
+      >
+        <span className="font-medium">Run log ({lines.length} lines)</span>
+        <span>{expanded ? "▲" : "▼"}</span>
+      </button>
+      {expanded && (
+        <pre
+          className="max-h-48 overflow-auto border-t border-ink-200/60 px-3 py-2
+                     font-mono text-[11px] text-ink-700 whitespace-pre-wrap"
+        >
+          {lines.join("\n")}
+          <div ref={logEndRef} />
+        </pre>
+      )}
+    </div>
   );
 }
 

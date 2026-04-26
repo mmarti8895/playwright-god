@@ -44,4 +44,29 @@ describe("pipeline store", () => {
     expect(computeProgress({ completedSteps: 1, totalSteps: 2, stepFraction: 0.5 })).toBe(0.75);
     expect(computeProgress({ completedSteps: 0, totalSteps: 0, stepFraction: 1 })).toBe(0);
   });
+
+  it("sets retrying=true on retry-attempt and clears it on finished", () => {
+    const store = usePipelineStore.getState();
+    store.begin("run-3", ["plan"]);
+    store.apply({ type: "started", step: "plan" });
+    expect(usePipelineStore.getState().retrying).toBe(false);
+
+    store.apply({ type: "retry-attempt", step: "plan", attempt: 1, max: 3, delay_s: 2.0 });
+    expect(usePipelineStore.getState().retrying).toBe(true);
+
+    store.apply({ type: "finished", step: "plan", exit_code: 0 });
+    expect(usePipelineStore.getState().retrying).toBe(false);
+  });
+
+  it("clears retrying on failed and cancelled", () => {
+    const store = usePipelineStore.getState();
+    store.begin("run-4", ["generate"]);
+    store.apply({ type: "started", step: "generate" });
+    store.apply({ type: "retry-attempt", step: "generate", attempt: 1, max: 3, delay_s: 2.0 });
+    expect(usePipelineStore.getState().retrying).toBe(true);
+
+    store.apply({ type: "failed", step: "generate", exit_code: 1, message: "exhausted" });
+    expect(usePipelineStore.getState().retrying).toBe(false);
+    expect(usePipelineStore.getState().status).toBe("failed");
+  });
 });

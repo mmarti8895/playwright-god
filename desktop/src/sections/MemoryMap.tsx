@@ -4,7 +4,9 @@ import { useUIStore } from "@/state/ui";
 import { usePipelineStore } from "@/state/pipeline";
 import {
   readIndexStatus,
+  readFlowGraph,
   readMemoryMap,
+  type FlowGraph,
   type IndexStatus,
   type MemoryMap,
   type MemoryMapFile,
@@ -16,9 +18,12 @@ import clsx from "clsx";
 export function MemoryMapView() {
   const repo = useUIStore((s) => s.activeRepo);
   const version = useUIStore((s) => s.artifactsVersion);
+  const setActiveSection = useUIStore((s) => s.setActiveSection);
+  const setFlowGraphFocus = useUIStore((s) => s.setFlowGraphFocus);
   const pipelineStatus = usePipelineStore((s) => s.status);
   const pipelineTotalSteps = usePipelineStore((s) => s.totalSteps);
   const [data, setData] = useState<MemoryMap | null>(null);
+  const [flowGraph, setFlowGraph] = useState<FlowGraph | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const isIndexing = pipelineStatus === "running" && pipelineTotalSteps === 1;
@@ -26,22 +31,25 @@ export function MemoryMapView() {
   useEffect(() => {
     if (!repo) {
       setData(null);
+      setFlowGraph(null);
       setIndexStatus(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    void Promise.all([readMemoryMap(repo), readIndexStatus(repo)])
-      .then(([mm, status]) => {
+    void Promise.all([readMemoryMap(repo), readIndexStatus(repo), readFlowGraph(repo)])
+      .then(([mm, status, fg]) => {
         if (!cancelled) {
           setData(mm);
           setIndexStatus(status);
+          setFlowGraph(fg);
           setLoading(false);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setData(null);
+          setFlowGraph(null);
           setIndexStatus(null);
           setLoading(false);
         }
@@ -101,6 +109,12 @@ export function MemoryMapView() {
 
   // Group files by feature area (or fall back to top-level directory).
   const filesByFeature = groupFiles(data);
+  const evidenceFiles = new Set<string>();
+  for (const n of flowGraph?.nodes ?? []) {
+    for (const e of n.evidence ?? []) {
+      if (e.file) evidenceFiles.add(e.file);
+    }
+  }
   const featureNames = Object.keys(filesByFeature).sort();
 
   return (
@@ -129,7 +143,16 @@ export function MemoryMapView() {
       <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         <ul className="flex flex-col gap-2">
           {featureNames.map((name) => (
-            <FeatureGroup key={name} name={name} files={filesByFeature[name]} />
+            <FeatureGroup
+              key={name}
+              name={name}
+              files={filesByFeature[name]}
+              hasFlowEvidence={(path) => evidenceFiles.has(path)}
+              onOpenInFlowGraph={(path) => {
+                setFlowGraphFocus({ query: path });
+                setActiveSection("flow-graph");
+              }}
+            />
           ))}
         </ul>
       </div>
@@ -137,7 +160,17 @@ export function MemoryMapView() {
   );
 }
 
-function FeatureGroup({ name, files }: { name: string; files: MemoryMapFile[] }) {
+function FeatureGroup({
+  name,
+  files,
+  hasFlowEvidence,
+  onOpenInFlowGraph,
+}: {
+  name: string;
+  files: MemoryMapFile[];
+  hasFlowEvidence: (path: string) => boolean;
+  onOpenInFlowGraph: (path: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen} asChild>
@@ -162,9 +195,20 @@ function FeatureGroup({ name, files }: { name: string; files: MemoryMapFile[] })
                 className="flex items-center justify-between gap-3 rounded px-2 py-1 hover:bg-ink-50"
               >
                 <span className="font-mono text-[12px] text-ink-700 truncate">{f.path}</span>
-                <span className="shrink-0 text-[11px] text-ink-500">
-                  {f.chunk_count != null ? `${f.chunk_count} chunks` : ""}
-                </span>
+                <div className="shrink-0 flex items-center gap-2">
+                  <span className="text-[11px] text-ink-500">
+                    {f.chunk_count != null ? `${f.chunk_count} chunks` : ""}
+                  </span>
+                  {hasFlowEvidence(f.path) && (
+                    <button
+                      type="button"
+                      className="rounded border border-ink-200 bg-white px-2 py-0.5 text-[10px] text-ink-700 hover:bg-ink-50"
+                      onClick={() => onOpenInFlowGraph(f.path)}
+                    >
+                      Open in Flow Graph
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

@@ -39,14 +39,17 @@ export type CodegenEvent =
   | { type: "stopped" };
 
 export async function listRuns(repo: string): Promise<RunSummary[]> {
+  if (!inTauri()) return [];
   return invokeCommand<RunSummary[]>("list_runs", { repo });
 }
 
 export async function inspectRepo(repo: string): Promise<unknown> {
+  if (!inTauri()) return null;
   return invokeCommand<unknown>("inspect_repo", { repo });
 }
 
 export async function discoverRepo(repo: string): Promise<unknown> {
+  if (!inTauri()) return null;
   return invokeCommand<unknown>("discover_repo", { repo });
 }
 
@@ -54,6 +57,7 @@ export async function previewPrompt(
   repo: string,
   description: string,
 ): Promise<PromptPreview> {
+  if (!inTauri()) return { prompt: description };
   return invokeCommand<PromptPreview>("preview_prompt", {
     repo,
     description,

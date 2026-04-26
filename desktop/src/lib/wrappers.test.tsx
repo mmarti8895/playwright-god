@@ -48,6 +48,7 @@ import {
   apiKeyEnvVar,
   DEFAULT_SETTINGS,
   detectCli,
+  getEffectiveSettingsSummary,
   getSecret,
   getSettings,
   resetSettings,
@@ -64,7 +65,7 @@ import {
   previewPrompt,
   tailCodegen,
 } from "@/lib/runs";
-import { exportRows } from "@/lib/csv";
+import { exportOutputText, exportRows, formatOutputExportFilename } from "@/lib/csv";
 import { usePlatform } from "@/lib/platform";
 
 describe("desktop wrapper modules", () => {
@@ -142,7 +143,16 @@ describe("desktop wrapper modules", () => {
       .mockResolvedValueOnce("sekret")
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ keyring_ok: true, fallback_path: null });
+      .mockResolvedValueOnce({ keyring_ok: true, fallback_path: null })
+      .mockResolvedValueOnce({
+        provider: "openai",
+        provider_source: "settings",
+        model: "gpt-5.4",
+        model_source: "repo-dotenv",
+        selected_api_key_env: "OPENAI_API_KEY",
+        selected_api_key_source: "repo-dotenv",
+        selected_api_key_present: true,
+      });
 
     expect(apiKeyEnvVar("openai")).toBe("OPENAI_API_KEY");
     expect(apiKeyEnvVar("anthropic")).toBe("ANTHROPIC_API_KEY");
@@ -162,6 +172,15 @@ describe("desktop wrapper modules", () => {
     await expect(setSecret("OPENAI_API_KEY", "sekret")).resolves.toBeUndefined();
     await expect(deleteSecret("OPENAI_API_KEY")).resolves.toBeUndefined();
     await expect(secretsHealth()).resolves.toEqual({ keyring_ok: true, fallback_path: null });
+    await expect(getEffectiveSettingsSummary("/repo")).resolves.toEqual({
+      provider: "openai",
+      provider_source: "settings",
+      model: "gpt-5.4",
+      model_source: "repo-dotenv",
+      selected_api_key_env: "OPENAI_API_KEY",
+      selected_api_key_source: "repo-dotenv",
+      selected_api_key_present: true,
+    });
   });
 
   it("runs wrappers invoke backend commands and tailCodegen handles stop and errors", async () => {
@@ -281,6 +300,40 @@ describe("desktop wrapper modules", () => {
         value: originalRevokeObjectURL,
       });
     }
+  });
+
+  it("formatOutputExportFilename uses sortable UTC naming contract", () => {
+    expect(formatOutputExportFilename(new Date("2026-04-26T00:01:51.602Z"))).toBe(
+      "output_20260426T000151Z.txt",
+    );
+  });
+
+  it("exportOutputText writes exact text in tauri mode", async () => {
+    isTauriMock.mockReturnValue(true);
+    saveMock.mockResolvedValueOnce("C:/tmp/output_20260426T000151Z.txt");
+    writeTextFileMock.mockResolvedValueOnce(undefined);
+
+    await expect(exportOutputText("line one\nline two")).resolves.toEqual({
+      message: "Exported output to C:/tmp/output_20260426T000151Z.txt.",
+    });
+    expect(saveMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Export Output",
+        defaultPath: expect.stringMatching(/^output_\d{8}T\d{6}Z\.txt$/),
+      }),
+    );
+    expect(writeTextFileMock).toHaveBeenCalledWith(
+      "C:/tmp/output_20260426T000151Z.txt",
+      "line one\nline two",
+    );
+  });
+
+  it("exportOutputText surfaces write failures", async () => {
+    isTauriMock.mockReturnValue(true);
+    saveMock.mockResolvedValueOnce("C:/tmp/output_20260426T000151Z.txt");
+    writeTextFileMock.mockRejectedValueOnce(new Error("disk is full"));
+
+    await expect(exportOutputText("x")).rejects.toThrow("disk is full");
   });
 
   it("usePlatform falls back to navigator and refreshes from Tauri", async () => {

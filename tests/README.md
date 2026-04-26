@@ -1,4 +1,4 @@
-# https://nihadmemmedli.github.io/quorvex_ai/ achieves the goal of the repo, use that instead, archieving. 
+# <https://nihadmemmedli.github.io/quorvex_ai/> achieves the goal of the repo, use that instead, archieving
 
 # Test Suite
 
@@ -7,12 +7,15 @@ This directory contains deterministic validation for the `playwright-god` CLI, r
 ## Test Layers
 
 `tests/unit/`
+
 - fast module-level coverage for crawler, chunker, generator, CLI, memory map, and feature inference
 
 `tests/integration/`
+
 - end-to-end repository analysis and generation flows without real LLM network calls
 
 `tests/e2e/`
+
 - browser-driven Playwright-for-Python tests against the fixture app in [tests/fixtures/sample_app](/c:/Users/mmart/projects/playwright-god/tests/fixtures/sample_app)
 
 ## Current Focus

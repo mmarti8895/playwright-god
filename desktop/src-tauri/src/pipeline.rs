@@ -11,6 +11,7 @@
 //! a side-effect of `index --memory-map`, while `flow-graph` now shells out to
 //! `playwright-god graph extract`. The UI still sees a stable six-step pipeline.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
@@ -507,6 +508,7 @@ async fn run_pipeline_inner<R: Runtime>(
         }
         let _ = channel.send(PipelineEvent::Started { step: step.label() });
 
+        let execution = build_step_execution(step, &paths, &description);
         if let Err(message) = emit_llm_preflight(step, &effective, &channel) {
             let _ = channel.send(PipelineEvent::Failed {
                 step: step.label(),

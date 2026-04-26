@@ -40,6 +40,7 @@ class SearchResult:
 # ---------------------------------------------------------------------------
 
 _METADATA_KEYS = ("file_path", "start_line", "end_line", "language")
+_DEFAULT_MAX_UPSERT_BATCH = 5_000
 
 
 class RepositoryIndexer:
@@ -120,13 +121,61 @@ class RepositoryIndexer:
             documents.append(chunk.content)
             vecs.append(emb)
 
-        # ChromaDB upsert handles duplicates gracefully
-        self._collection.upsert(
+        self._upsert_bounded(
             ids=ids,
             embeddings=vecs,
             metadatas=metadatas,
             documents=documents,
         )
+
+    def _upsert_bounded(
+        self,
+        *,
+        ids: list[str],
+        embeddings: list[list[float]],
+        metadatas: list[dict],
+        documents: list[str],
+    ) -> None:
+        """Upsert vectors in bounded batches to satisfy Chroma max batch limits."""
+        max_batch = self._resolve_max_upsert_batch_size()
+        for start in range(0, len(ids), max_batch):
+            end = start + max_batch
+            self._collection.upsert(
+                ids=ids[start:end],
+                embeddings=embeddings[start:end],
+                metadatas=metadatas[start:end],
+                documents=documents[start:end],
+            )
+
+    def _resolve_max_upsert_batch_size(self) -> int:
+        """Return the effective max upsert batch size, with a safe fallback."""
+
+        def _coerce(value: object) -> int | None:
+            try:
+                parsed = int(value)
+            except (TypeError, ValueError):
+                return None
+            return parsed if parsed > 0 else None
+
+        def _extract(source: object | None, attr: str) -> int | None:
+            if source is None:
+                return None
+            value = getattr(source, attr, None)
+            if callable(value):
+                try:
+                    value = value()
+                except TypeError:
+                    return None
+            return _coerce(value)
+
+        sources = [self._collection, self._client, getattr(self._collection, "_client", None)]
+        for source in sources:
+            for attr in ("max_batch_size", "get_max_batch_size", "_max_batch_size"):
+                size = _extract(source, attr)
+                if size is not None:
+                    return size
+
+        return _DEFAULT_MAX_UPSERT_BATCH
 
     def search(self, query: str, n_results: int = 5) -> list[SearchResult]:
         """Return the top-*n_results* chunks most similar to *query*.

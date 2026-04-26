@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest.mock
 from abc import ABC, abstractmethod
 from typing import Callable, Sequence
@@ -29,6 +30,10 @@ class LLMClient(ABC):
 class OpenAIClient(LLMClient):
     """Calls the OpenAI Chat Completions API."""
 
+    _RETRYABLE_ERROR_NAMES = ("APIConnectionError", "APITimeoutError")
+    _MAX_ATTEMPTS = 2
+    _RETRY_DELAY_SECONDS = 0.5
+
     def __init__(self, api_key: str | None = None, model: str = "gpt-4o") -> None:
         try:
             import openai
@@ -39,20 +44,35 @@ class OpenAIClient(LLMClient):
 
         import openai
 
+        self._openai = openai
         self._client = openai.OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY", ""))
         self.model = model
 
     def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         sys_msg = system_prompt or PlaywrightTestGenerator.SYSTEM_PROMPT
-        response = self._client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": sys_msg},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-        )
-        return response.choices[0].message.content or ""
+        last_error: Exception | None = None
+        for attempt in range(1, self._MAX_ATTEMPTS + 1):
+            try:
+                response = self._client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": sys_msg},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.2,
+                )
+                return response.choices[0].message.content or ""
+            except Exception as exc:
+                if not self._is_retryable_error(exc) or attempt >= self._MAX_ATTEMPTS:
+                    raise
+                last_error = exc
+                time.sleep(self._RETRY_DELAY_SECONDS)
+        if last_error is not None:
+            raise last_error
+        return ""
+
+    def _is_retryable_error(self, exc: Exception) -> bool:
+        return exc.__class__.__name__ in self._RETRYABLE_ERROR_NAMES
 
 
 class AnthropicClient(LLMClient):

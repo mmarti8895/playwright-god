@@ -63,11 +63,22 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Install Playwright browser
+        if: matrix.os == 'ubuntu-latest'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright browser
+        if: matrix.os == 'macos-latest'
+        run: npx playwright install chromium
+
       - name: Lint (eslint)
         run: npm run lint
 
       - name: Frontend tests (vitest)
         run: npm test
+
+      - name: Generated desktop Playwright test
+        run: npm run test:e2e:generated
 
       - name: Frontend build (vite + tsc)
         run: npm run build

@@ -61,15 +61,28 @@ describe("runManagedPipeline", () => {
     vi.mocked(startPipeline).mockImplementation(async (_repo, onEvent) => {
       onEvent({ type: "run-started", run_id: "run-2", steps: ["generate", "run"] });
       onEvent({ type: "started", step: "generate" });
+      onEvent({
+        type: "diagnostic",
+        step: "generate",
+        category: "preflight",
+        message: "provider=openai",
+      });
       onEvent({ type: "stderr-line", step: "generate", line: "broken prompt" });
       onEvent({ type: "failed", step: "generate", exit_code: 1, message: "exploded" });
       return "run-2";
     });
 
-    await expect(runManagedPipeline("/repo")).resolves.toBe("run-2");
+    await expect(runManagedPipeline("/repo", "full", "login flow")).resolves.toBe("run-2");
     expect(usePipelineStore.getState().status).toBe("failed");
+    expect(vi.mocked(startPipeline)).toHaveBeenCalledWith(
+      "/repo",
+      expect.any(Function),
+      "full",
+      "login flow",
+    );
     expect(useOutputStore.getState().lines.map((line) => line.text)).toEqual(
       expect.arrayContaining([
+        "DIAG generate [preflight]: provider=openai",
         "[generate] broken prompt",
         "FAIL generate: exploded",
       ]),
@@ -93,6 +106,7 @@ describe("runManagedPipeline", () => {
       "/repo",
       expect.any(Function),
       "index-only",
+      undefined,
     );
   });
 

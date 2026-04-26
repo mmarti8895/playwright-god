@@ -32,17 +32,18 @@ describe("desktop bridge wrappers", () => {
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
-  it("startPipeline invokes run_pipeline with mode and channel", async () => {
+  it("startPipeline invokes run_pipeline with mode, description, and channel", async () => {
     invokeMock.mockResolvedValue("run-123");
 
-    const runId = await startPipeline("/repo", vi.fn(), "index-only");
+    const runId = await startPipeline("/repo", vi.fn(), "full", "login flow");
 
     expect(runId).toBe("run-123");
     expect(invokeMock).toHaveBeenCalledWith(
       "run_pipeline",
       expect.objectContaining({
         repo: "/repo",
-        mode: "index-only",
+        mode: "full",
+        description: "login flow",
         onEvent: expect.any(MockChannel),
       }),
     );

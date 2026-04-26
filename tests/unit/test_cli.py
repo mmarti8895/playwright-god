@@ -279,6 +279,33 @@ class TestGenerateCommand:
         assert result.exit_code == 0
         MockOpenAI.assert_called_once_with(api_key="sk-test", model="gpt-4o")
 
+    def test_generate_provider_disconnect_exits_cleanly(self, runner, tmp_path):
+        persist = str(tmp_path / "idx")
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = RuntimeError(
+                "Server disconnected without sending a response."
+            )
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "login flow", "-d", persist,
+                    "--provider", "openai", "--api-key", "sk-test",
+                ],
+            )
+
+        assert result.exit_code == 2
+        assert "failed to generate test via provider openai" in result.output
+        assert "Server disconnected without sending a response." in result.output
+        assert "Traceback" not in result.output
+
     def test_generate_openai_custom_model(self, runner, tmp_path):
         persist = str(tmp_path / "idx")
         with (
@@ -879,6 +906,27 @@ class TestPlanCommand:
             )
         assert result.exit_code == 0
         MockOpenAI.assert_called_once_with(api_key="sk-test", model="gpt-4o")
+
+    def test_plan_provider_disconnect_exits_cleanly(self, runner, tmp_path):
+        map_file = tmp_path / "map.json"
+        map_file.write_text("{}", encoding="utf-8")
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = RuntimeError(
+                "Server disconnected without sending a response."
+            )
+            MockOpenAI.return_value = mock_client
+            result = runner.invoke(
+                cli,
+                ["plan", "--memory-map", str(map_file), "--provider", "openai", "--api-key", "sk-test"],
+            )
+        assert result.exit_code == 2
+        assert "failed to generate plan via provider openai" in result.output
+        assert "Server disconnected without sending a response." in result.output
+        assert "Traceback" not in result.output
 
     def test_plan_anthropic_provider_selected(self, runner, tmp_path):
         map_file = tmp_path / "map.json"
@@ -2628,6 +2676,191 @@ class TestPrintPlanDetails:
 
         assert "Review" in captured.out
         assert "... and 5 more" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Retry flag tests (llm-retry-resilience)
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateRetryFlags:
+    def _make_mock_indexer(self, MockEmb, MockIdx):
+        MockEmb.return_value = MagicMock()
+        mock_indexer = MagicMock()
+        mock_indexer.count.return_value = 0
+        mock_indexer.search.return_value = []
+        MockIdx.return_value = mock_indexer
+
+    def test_retry_max_zero_disables_retry(self, runner, tmp_path):
+        """--retry-max 0 should not retry; failure propagates immediately."""
+        persist = str(tmp_path / "idx")
+        call_count = {"n": 0}
+
+        def _failing_complete(*args, **kwargs):
+            call_count["n"] += 1
+            raise ConnectionError("connection error")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = _failing_complete
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "login test", "-d", persist,
+                    "--provider", "openai", "--api-key", "sk-test",
+                    "--retry-max", "0",
+                ],
+            )
+
+        assert result.exit_code == 2
+        assert call_count["n"] == 1
+
+    def test_retry_max_causes_retries(self, runner, tmp_path):
+        """--retry-max 2 should attempt 2 times total before failing."""
+        persist = str(tmp_path / "idx")
+        call_count = {"n": 0}
+
+        def _failing_complete(*args, **kwargs):
+            call_count["n"] += 1
+            raise ConnectionError("connection error")
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+            patch("playwright_god.retry.time.sleep"),
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = _failing_complete
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "login test", "-d", persist,
+                    "--provider", "openai", "--api-key", "sk-test",
+                    "--retry-max", "2",
+                ],
+            )
+
+        assert result.exit_code == 2
+        # max_attempts=2 means 2 total attempts
+        assert call_count["n"] == 2
+
+    def test_retry_succeeds_on_second_attempt(self, runner, tmp_path):
+        """generate succeeds when retry recovers after one transient failure."""
+        persist = str(tmp_path / "idx")
+        call_count = {"n": 0}
+
+        def _flaky_complete(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise ConnectionError("connection error")
+            return "// generated"
+
+        with (
+            patch("playwright_god.cli.DefaultEmbedder") as MockEmb,
+            patch("playwright_god.cli.RepositoryIndexer") as MockIdx,
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+            patch("playwright_god.retry.time.sleep"),
+        ):
+            self._make_mock_indexer(MockEmb, MockIdx)
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = _flaky_complete
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate", "login test", "-d", persist,
+                    "--provider", "openai", "--api-key", "sk-test",
+                    "--retry-max", "2",
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert call_count["n"] == 2
+
+
+class TestPlanRetryFlags:
+    def _map_file(self, tmp_path):
+        import json
+        map_file = tmp_path / "map.json"
+        map_file.write_text(json.dumps({
+            "generated_at": "2024-01-01T00:00:00+00:00",
+            "total_files": 0,
+            "total_chunks": 0,
+            "languages": {},
+            "files": [],
+        }), encoding="utf-8")
+        return str(map_file)
+
+    def test_retry_max_zero_disables_retry(self, runner, tmp_path):
+        """plan --retry-max 0 should not retry on transient error."""
+        map_file = self._map_file(tmp_path)
+        call_count = {"n": 0}
+
+        def _failing_complete(*args, **kwargs):
+            call_count["n"] += 1
+            raise ConnectionError("connection error")
+
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = _failing_complete
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "plan", "--memory-map", map_file,
+                    "--provider", "openai", "--api-key", "sk-test",
+                    "--retry-max", "0",
+                ],
+            )
+
+        assert result.exit_code == 2
+        assert call_count["n"] == 1
+
+    def test_retry_max_causes_retries(self, runner, tmp_path):
+        """plan --retry-max 2 attempts 2 times total before failing."""
+        map_file = self._map_file(tmp_path)
+        call_count = {"n": 0}
+
+        def _failing_complete(*args, **kwargs):
+            call_count["n"] += 1
+            raise ConnectionError("connection error")
+
+        with (
+            patch("playwright_god.cli.load_memory_map", return_value={"total_files": 0, "total_chunks": 0, "languages": {}, "files": []}),
+            patch("playwright_god.cli.OpenAIClient") as MockOpenAI,
+            patch("playwright_god.retry.time.sleep"),
+        ):
+            mock_client = MagicMock()
+            mock_client.complete.side_effect = _failing_complete
+            MockOpenAI.return_value = mock_client
+
+            result = runner.invoke(
+                cli,
+                [
+                    "plan", "--memory-map", map_file,
+                    "--provider", "openai", "--api-key", "sk-test",
+                    "--retry-max", "2",
+                ],
+            )
+
+        assert result.exit_code == 2
+        assert call_count["n"] == 2
 
 
 # ---------------------------------------------------------------------------

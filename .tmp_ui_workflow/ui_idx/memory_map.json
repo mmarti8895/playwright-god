@@ -1,0 +1,3739 @@
+{
+  "generated_at": "2026-04-23T17:26:43.088533+00:00",
+  "total_files": 48,
+  "total_chunks": 140,
+  "languages": {
+    "typescript": 42,
+    "json": 1,
+    "rust": 4,
+    "css": 1
+  },
+  "files": [
+    {
+      "path": "App.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "f00898921feda688",
+          "start_line": 1,
+          "end_line": 5
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+      "language": "json",
+      "chunks": [
+        {
+          "chunk_id": "2ae1975d09a94612",
+          "start_line": 1,
+          "end_line": 63
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+      "language": "rust",
+      "chunks": [
+        {
+          "chunk_id": "8c0d142542bf1818",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "4a5b72064e8c5ef1",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "2b124cdacf9622d9",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "433075b7bf6c1532",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "81240a1ae1941bde",
+          "start_line": 281,
+          "end_line": 358
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+      "language": "rust",
+      "chunks": [
+        {
+          "chunk_id": "8890895b5aff1e82",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "5b107667a7f2b60b",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "2f96409169dc2114",
+          "start_line": 141,
+          "end_line": 166
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+      "language": "rust",
+      "chunks": [
+        {
+          "chunk_id": "1f4af6821a17ff1a",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "73a4d9d3733237e5",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "79f349d7eeb4556b",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "98e97d94654d3f75",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "5ce65981ddb48c4a",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "bdb0f9b8361b4905",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "fe34ead7f70ed141",
+          "start_line": 421,
+          "end_line": 500
+        },
+        {
+          "chunk_id": "36e21ad76fe6736e",
+          "start_line": 491,
+          "end_line": 570
+        },
+        {
+          "chunk_id": "7b793436e52d18e3",
+          "start_line": 561,
+          "end_line": 640
+        },
+        {
+          "chunk_id": "602d8b917935b15c",
+          "start_line": 631,
+          "end_line": 710
+        },
+        {
+          "chunk_id": "fbf6cb447ddc6bef",
+          "start_line": 701,
+          "end_line": 780
+        },
+        {
+          "chunk_id": "9f7a09ee66bca2e2",
+          "start_line": 771,
+          "end_line": 850
+        },
+        {
+          "chunk_id": "6d5b8e3ef7527857",
+          "start_line": 841,
+          "end_line": 920
+        },
+        {
+          "chunk_id": "bbdd74b95f877ca4",
+          "start_line": 911,
+          "end_line": 990
+        },
+        {
+          "chunk_id": "aeefb69836039a63",
+          "start_line": 981,
+          "end_line": 1024
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+      "language": "rust",
+      "chunks": [
+        {
+          "chunk_id": "14e8de0496eb0e01",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "dcbaaf8acd061f8a",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "a5096b52eb66bf8e",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "a53e2a0f828397a3",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "1d5d3fa56439c959",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "49b15e83784c326f",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "1c3362f3bfd3e66f",
+          "start_line": 421,
+          "end_line": 479
+        }
+      ]
+    },
+    {
+      "path": "components\\MainPanel.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "a7da4e6360ab775a",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "1be1c1bc8e958df4",
+          "start_line": 71,
+          "end_line": 82
+        }
+      ]
+    },
+    {
+      "path": "components\\OutputPane.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "a67ebbc363de2fdd",
+          "start_line": 1,
+          "end_line": 79
+        }
+      ]
+    },
+    {
+      "path": "components\\Panel.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "8bcf512f75248bb9",
+          "start_line": 1,
+          "end_line": 21
+        }
+      ]
+    },
+    {
+      "path": "components\\Shell.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "bcbe43e693e0a450",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "3fd5759f40dee3bd",
+          "start_line": 71,
+          "end_line": 111
+        }
+      ]
+    },
+    {
+      "path": "components\\Sidebar.test.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "ee482ce0c0bf5285",
+          "start_line": 1,
+          "end_line": 33
+        }
+      ]
+    },
+    {
+      "path": "components\\Sidebar.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "4309030eaca3a2d5",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "c08f95f42774aaa0",
+          "start_line": 71,
+          "end_line": 92
+        }
+      ]
+    },
+    {
+      "path": "lib\\artifacts.fused.test.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "440f1837b37dcf1b",
+          "start_line": 1,
+          "end_line": 76
+        }
+      ]
+    },
+    {
+      "path": "lib\\artifacts.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "49a8e40aa7a24994",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "0bc2da7e1f64fa1e",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "76b91dc69966cea3",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "bfabba73aaf7c115",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "c4bef3772813cab2",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "b7552a62bfe7f8cc",
+          "start_line": 351,
+          "end_line": 374
+        }
+      ]
+    },
+    {
+      "path": "lib\\bridge.test.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "24a19a7c5b577c42",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "f8c945aa2271e2d8",
+          "start_line": 71,
+          "end_line": 112
+        }
+      ]
+    },
+    {
+      "path": "lib\\commands.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "122841bb723d551b",
+          "start_line": 1,
+          "end_line": 27
+        }
+      ]
+    },
+    {
+      "path": "lib\\csv.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "302ab90539505cad",
+          "start_line": 1,
+          "end_line": 52
+        }
+      ]
+    },
+    {
+      "path": "lib\\pipeline-run.test.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "505ab7b6d2e4d8f3",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "8ad6d50a9d6cdb11",
+          "start_line": 71,
+          "end_line": 121
+        }
+      ]
+    },
+    {
+      "path": "lib\\pipeline-run.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "81e5df47a0248cf6",
+          "start_line": 1,
+          "end_line": 67
+        }
+      ]
+    },
+    {
+      "path": "lib\\pipeline.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "9fe048a6fe6f1fde",
+          "start_line": 1,
+          "end_line": 59
+        }
+      ]
+    },
+    {
+      "path": "lib\\platform.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "a3ba0d27340e9533",
+          "start_line": 1,
+          "end_line": 30
+        }
+      ]
+    },
+    {
+      "path": "lib\\runs.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "ce0b051bcc3dec27",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "561751e7c620e55d",
+          "start_line": 71,
+          "end_line": 101
+        }
+      ]
+    },
+    {
+      "path": "lib\\settings.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "7c069725dfb2869b",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "210c715c061eb716",
+          "start_line": 71,
+          "end_line": 119
+        }
+      ]
+    },
+    {
+      "path": "lib\\tauri.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "92d78498e0e4c646",
+          "start_line": 1,
+          "end_line": 21
+        }
+      ]
+    },
+    {
+      "path": "lib\\wrappers.test.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "226f1d19be23aa57",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "d341991bf6c66a78",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "6fc04e2087517fb0",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "6eccca3f24850363",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "7d99c61b1aeb20b7",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "29870de3c0b5c360",
+          "start_line": 351,
+          "end_line": 361
+        }
+      ]
+    },
+    {
+      "path": "main.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "6c1c4f4c1dc51881",
+          "start_line": 1,
+          "end_line": 10
+        }
+      ]
+    },
+    {
+      "path": "sections\\AuditLog.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "e7c26d69b0180fba",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "83fd00d97e93014b",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "030724e84b9de29f",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "5e738191bd4d5367",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "e92d1c8c926db596",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "7f298392384f83b7",
+          "start_line": 351,
+          "end_line": 402
+        }
+      ]
+    },
+    {
+      "path": "sections\\CodegenStream.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "971a8b396518cf7d",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "d69d48af895c8eef",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "204b8f91999a09eb",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "3aec62f8065d0189",
+          "start_line": 211,
+          "end_line": 230
+        }
+      ]
+    },
+    {
+      "path": "sections\\Coverage.test.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "3b7251827ed8f6ec",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "ff458d02f51ca017",
+          "start_line": 71,
+          "end_line": 146
+        }
+      ]
+    },
+    {
+      "path": "sections\\Coverage.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "571d3976e93fe41b",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "973a9b80e79989d2",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "ed54ec6f863d09a8",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "ee6a940e70772b1c",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "b9c5578db9f062a7",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "ea5f1333f31e74e8",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "8a1cd7675e6ff41a",
+          "start_line": 421,
+          "end_line": 472
+        }
+      ]
+    },
+    {
+      "path": "sections\\FlowGraph.test.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "b12fd15eac37938f",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "f933a5cd7e89acb7",
+          "start_line": 71,
+          "end_line": 111
+        }
+      ]
+    },
+    {
+      "path": "sections\\FlowGraph.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "39ba2dd27a4c7d24",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "6032a0d7c38acf9f",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "de573cd5319942de",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "91f5f1c539a42cb2",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "a8a90c5ac62f63e5",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "4df5315fea3b00eb",
+          "start_line": 351,
+          "end_line": 366
+        }
+      ]
+    },
+    {
+      "path": "sections\\Generation.test.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "6c0b6f922b6a9d71",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "272cca530ee1381a",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "5c7776358a8439eb",
+          "start_line": 141,
+          "end_line": 159
+        }
+      ]
+    },
+    {
+      "path": "sections\\Generation.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "af6ec250f2988172",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "e849e50fcffae1b9",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "d29e77e40c17c26c",
+          "start_line": 141,
+          "end_line": 192
+        }
+      ]
+    },
+    {
+      "path": "sections\\IndexCtas.test.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "76a6e53b39213a9a",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "3f584a8f79e379e6",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "9a0d1aed5e118c85",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "6408fdff451ca8a4",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "8097effca19371b2",
+          "start_line": 281,
+          "end_line": 352
+        }
+      ]
+    },
+    {
+      "path": "sections\\Inspect.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "08e351330cd5d69f",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "c72f56e6b19a0d79",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "589bafbe0d871027",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "cfbe4d796236486e",
+          "start_line": 211,
+          "end_line": 255
+        }
+      ]
+    },
+    {
+      "path": "sections\\MemoryMap.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "ca65971925e704d1",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "8f0f80d4d8c6dc84",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "fd01d108f416316c",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "35c70aa1add16ba8",
+          "start_line": 211,
+          "end_line": 253
+        }
+      ]
+    },
+    {
+      "path": "sections\\MemoryMapStates.test.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "2865eccbf7cffbd5",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "9543c4a9949f01f2",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "398bb2f2aacd948d",
+          "start_line": 141,
+          "end_line": 201
+        }
+      ]
+    },
+    {
+      "path": "sections\\Placeholder.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "d4779e3984cd3fae",
+          "start_line": 1,
+          "end_line": 19
+        }
+      ]
+    },
+    {
+      "path": "sections\\Rag.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "95e4c814e146c095",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "0b87e87d93d7d51a",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "5723e2dd4bf7ca41",
+          "start_line": 141,
+          "end_line": 209
+        }
+      ]
+    },
+    {
+      "path": "sections\\Repository.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "249d680403d76689",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "a70bf592f4583fe5",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "7574d5c1fca9968b",
+          "start_line": 141,
+          "end_line": 159
+        }
+      ]
+    },
+    {
+      "path": "sections\\Settings.tsx",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "57b69fdcf2b39cc2",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "5a37cd62a35ee832",
+          "start_line": 71,
+          "end_line": 150
+        },
+        {
+          "chunk_id": "13992b74921c6896",
+          "start_line": 141,
+          "end_line": 220
+        },
+        {
+          "chunk_id": "089d4c694042bd0a",
+          "start_line": 211,
+          "end_line": 290
+        },
+        {
+          "chunk_id": "7d4f5c85e5ccd0f2",
+          "start_line": 281,
+          "end_line": 360
+        },
+        {
+          "chunk_id": "07eec17ebab4bff8",
+          "start_line": 351,
+          "end_line": 430
+        },
+        {
+          "chunk_id": "6236e290893df2e9",
+          "start_line": 421,
+          "end_line": 452
+        }
+      ]
+    },
+    {
+      "path": "state\\output.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "6ee03efc0180827f",
+          "start_line": 1,
+          "end_line": 38
+        }
+      ]
+    },
+    {
+      "path": "state\\pipeline.test.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "7a3e3f5b3b6edb54",
+          "start_line": 1,
+          "end_line": 47
+        }
+      ]
+    },
+    {
+      "path": "state\\pipeline.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "8582a15dafecfa57",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "f72a4b323074611a",
+          "start_line": 71,
+          "end_line": 114
+        }
+      ]
+    },
+    {
+      "path": "state\\ui.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "6fa4f24ed7b77f7c",
+          "start_line": 1,
+          "end_line": 80
+        },
+        {
+          "chunk_id": "244100a8bc7d947d",
+          "start_line": 71,
+          "end_line": 85
+        }
+      ]
+    },
+    {
+      "path": "styles.css",
+      "language": "css",
+      "chunks": [
+        {
+          "chunk_id": "423491dd45b93119",
+          "start_line": 1,
+          "end_line": 65
+        }
+      ]
+    },
+    {
+      "path": "test\\setup.ts",
+      "language": "typescript",
+      "chunks": [
+        {
+          "chunk_id": "d65963af6f6e85d6",
+          "start_line": 1,
+          "end_line": 1
+        }
+      ]
+    }
+  ],
+  "schema_version": "2.3",
+  "features": [
+    {
+      "feature_id": "authentication",
+      "name": "Authentication",
+      "summary": "Identity, session, and sign-in flows that gate access to application features.",
+      "confidence": 0.98,
+      "artifacts": [
+        {
+          "artifact_id": "authentication:lib\\artifacts.fused.test.ts",
+          "file_path": "lib\\artifacts.fused.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 76,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals auth, login in lib\\artifacts.fused.test.ts"
+        },
+        {
+          "artifact_id": "authentication:lib\\bridge.test.ts",
+          "file_path": "lib\\bridge.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 112,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals login in lib\\bridge.test.ts"
+        },
+        {
+          "artifact_id": "authentication:lib\\pipeline-run.test.ts",
+          "file_path": "lib\\pipeline-run.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 121,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals login in lib\\pipeline-run.test.ts"
+        },
+        {
+          "artifact_id": "authentication:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals login in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "authentication:sections\\FlowGraph.test.tsx",
+          "file_path": "sections\\FlowGraph.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals auth, login in sections\\FlowGraph.test.tsx"
+        },
+        {
+          "artifact_id": "authentication:sections\\IndexCtas.test.tsx",
+          "file_path": "sections\\IndexCtas.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 352,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals auth, login in sections\\IndexCtas.test.tsx"
+        },
+        {
+          "artifact_id": "authentication:sections\\MemoryMapStates.test.tsx",
+          "file_path": "sections\\MemoryMapStates.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 201,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals auth, login in sections\\MemoryMapStates.test.tsx"
+        },
+        {
+          "artifact_id": "authentication:sections\\Rag.tsx",
+          "file_path": "sections\\Rag.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 209,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals auth, login in sections\\Rag.tsx"
+        },
+        {
+          "artifact_id": "authentication:sections\\Settings.tsx",
+          "file_path": "sections\\Settings.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 452,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals password in sections\\Settings.tsx"
+        },
+        {
+          "artifact_id": "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 1024,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals auth, login, token in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+        }
+      ],
+      "entry_points": [
+        "lib\\artifacts.fused.test.ts",
+        "lib\\bridge.test.ts",
+        "lib\\pipeline-run.test.ts",
+        "lib\\wrappers.test.tsx",
+        "sections\\FlowGraph.test.tsx"
+      ],
+      "workflows": [
+        "User signs in with valid credentials",
+        "User sees a friendly error for invalid credentials"
+      ]
+    },
+    {
+      "feature_id": "todo-management",
+      "name": "Todo Management",
+      "summary": "Create, update, and remove task-like records from the primary workspace.",
+      "confidence": 0.98,
+      "artifacts": [
+        {
+          "artifact_id": "todo-management:components\\MainPanel.tsx",
+          "file_path": "components\\MainPanel.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 82,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals task in components\\MainPanel.tsx"
+        },
+        {
+          "artifact_id": "todo-management:components\\Shell.tsx",
+          "file_path": "components\\Shell.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals task in components\\Shell.tsx"
+        },
+        {
+          "artifact_id": "todo-management:lib\\settings.ts",
+          "file_path": "lib\\settings.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 119,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals delete in lib\\settings.ts"
+        },
+        {
+          "artifact_id": "todo-management:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals delete in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\CodegenStream.tsx",
+          "file_path": "sections\\CodegenStream.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 230,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals checkbox, delete in sections\\CodegenStream.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\FlowGraph.test.tsx",
+          "file_path": "sections\\FlowGraph.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals checkbox in sections\\FlowGraph.test.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\FlowGraph.tsx",
+          "file_path": "sections\\FlowGraph.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 366,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals checkbox in sections\\FlowGraph.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\Generation.test.tsx",
+          "file_path": "sections\\Generation.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 159,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete in sections\\Generation.test.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\Generation.tsx",
+          "file_path": "sections\\Generation.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 192,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete in sections\\Generation.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\MemoryMap.tsx",
+          "file_path": "sections\\MemoryMap.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 253,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete in sections\\MemoryMap.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\Rag.tsx",
+          "file_path": "sections\\Rag.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 209,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete in sections\\Rag.tsx"
+        },
+        {
+          "artifact_id": "todo-management:sections\\Settings.tsx",
+          "file_path": "sections\\Settings.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 452,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete, delete, task in sections\\Settings.tsx"
+        },
+        {
+          "artifact_id": "todo-management:state\\pipeline.test.ts",
+          "file_path": "state\\pipeline.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 47,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete in state\\pipeline.test.ts"
+        },
+        {
+          "artifact_id": "todo-management:state\\pipeline.ts",
+          "file_path": "state\\pipeline.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 114,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete in state\\pipeline.ts"
+        },
+        {
+          "artifact_id": "todo-management:styles.css",
+          "file_path": "styles.css",
+          "language": "css",
+          "start_line": 1,
+          "end_line": 65,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals task in styles.css"
+        },
+        {
+          "artifact_id": "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 479,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals delete in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs"
+        },
+        {
+          "artifact_id": "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 1024,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals complete, task in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+        },
+        {
+          "artifact_id": "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 358,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals task in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs"
+        },
+        {
+          "artifact_id": "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 166,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals delete in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+        },
+        {
+          "artifact_id": "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "language": "json",
+          "start_line": 1,
+          "end_line": 63,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals checkbox in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+        }
+      ],
+      "entry_points": [
+        "components\\MainPanel.tsx",
+        "components\\Shell.tsx",
+        "lib\\settings.ts",
+        "lib\\wrappers.test.tsx",
+        "sections\\CodegenStream.tsx"
+      ],
+      "workflows": [
+        "User adds a new todo item",
+        "User completes and deletes an existing todo"
+      ]
+    },
+    {
+      "feature_id": "navigation",
+      "name": "Navigation",
+      "summary": "Links, routes, and shell navigation that connect feature areas together.",
+      "confidence": 0.98,
+      "artifacts": [
+        {
+          "artifact_id": "navigation:components\\Sidebar.test.tsx",
+          "file_path": "components\\Sidebar.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 33,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals nav, navigation in components\\Sidebar.test.tsx"
+        },
+        {
+          "artifact_id": "navigation:components\\Sidebar.tsx",
+          "file_path": "components\\Sidebar.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 92,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals nav in components\\Sidebar.tsx"
+        },
+        {
+          "artifact_id": "navigation:lib\\artifacts.fused.test.ts",
+          "file_path": "lib\\artifacts.fused.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 76,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in lib\\artifacts.fused.test.ts"
+        },
+        {
+          "artifact_id": "navigation:lib\\artifacts.ts",
+          "file_path": "lib\\artifacts.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 374,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in lib\\artifacts.ts"
+        },
+        {
+          "artifact_id": "navigation:lib\\bridge.test.ts",
+          "file_path": "lib\\bridge.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 112,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals nav in lib\\bridge.test.ts"
+        },
+        {
+          "artifact_id": "navigation:lib\\csv.ts",
+          "file_path": "lib\\csv.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 52,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals href in lib\\csv.ts"
+        },
+        {
+          "artifact_id": "navigation:lib\\platform.ts",
+          "file_path": "lib\\platform.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 30,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals nav in lib\\platform.ts"
+        },
+        {
+          "artifact_id": "navigation:lib\\runs.ts",
+          "file_path": "lib\\runs.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 101,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in lib\\runs.ts"
+        },
+        {
+          "artifact_id": "navigation:lib\\tauri.ts",
+          "file_path": "lib\\tauri.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 21,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals nav in lib\\tauri.ts"
+        },
+        {
+          "artifact_id": "navigation:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals href, nav in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\AuditLog.tsx",
+          "file_path": "sections\\AuditLog.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 402,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in sections\\AuditLog.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\Coverage.test.tsx",
+          "file_path": "sections\\Coverage.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 146,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals nav in sections\\Coverage.test.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\Coverage.tsx",
+          "file_path": "sections\\Coverage.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 472,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route, router in sections\\Coverage.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\FlowGraph.test.tsx",
+          "file_path": "sections\\FlowGraph.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in sections\\FlowGraph.test.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\FlowGraph.tsx",
+          "file_path": "sections\\FlowGraph.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 366,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in sections\\FlowGraph.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\Inspect.tsx",
+          "file_path": "sections\\Inspect.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 255,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in sections\\Inspect.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\MemoryMapStates.test.tsx",
+          "file_path": "sections\\MemoryMapStates.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 201,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals route in sections\\MemoryMapStates.test.tsx"
+        },
+        {
+          "artifact_id": "navigation:sections\\Settings.tsx",
+          "file_path": "sections\\Settings.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 452,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals nav in sections\\Settings.tsx"
+        },
+        {
+          "artifact_id": "navigation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "language": "json",
+          "start_line": 1,
+          "end_line": 63,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals menu in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+        }
+      ],
+      "entry_points": [
+        "components\\Sidebar.test.tsx",
+        "components\\Sidebar.tsx",
+        "lib\\artifacts.fused.test.ts",
+        "lib\\artifacts.ts",
+        "lib\\bridge.test.ts"
+      ],
+      "workflows": [
+        "User can move between primary sections"
+      ]
+    },
+    {
+      "feature_id": "profile-settings",
+      "name": "Profile and Settings",
+      "summary": "Account-facing settings, profile surfaces, and session actions.",
+      "confidence": 0.98,
+      "artifacts": [
+        {
+          "artifact_id": "profile-settings:components\\MainPanel.tsx",
+          "file_path": "components\\MainPanel.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 82,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in components\\MainPanel.tsx"
+        },
+        {
+          "artifact_id": "profile-settings:components\\Shell.tsx",
+          "file_path": "components\\Shell.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in components\\Shell.tsx"
+        },
+        {
+          "artifact_id": "profile-settings:components\\Sidebar.test.tsx",
+          "file_path": "components\\Sidebar.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 33,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in components\\Sidebar.test.tsx"
+        },
+        {
+          "artifact_id": "profile-settings:components\\Sidebar.tsx",
+          "file_path": "components\\Sidebar.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 92,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in components\\Sidebar.tsx"
+        },
+        {
+          "artifact_id": "profile-settings:lib\\settings.ts",
+          "file_path": "lib\\settings.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 119,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in lib\\settings.ts"
+        },
+        {
+          "artifact_id": "profile-settings:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "profile-settings:sections\\Settings.tsx",
+          "file_path": "sections\\Settings.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 452,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in sections\\Settings.tsx"
+        },
+        {
+          "artifact_id": "profile-settings:state\\ui.ts",
+          "file_path": "state\\ui.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 85,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in state\\ui.ts"
+        },
+        {
+          "artifact_id": "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 479,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs"
+        },
+        {
+          "artifact_id": "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 1024,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals account, settings in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+        },
+        {
+          "artifact_id": "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 358,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs"
+        },
+        {
+          "artifact_id": "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 166,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals settings in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+        }
+      ],
+      "entry_points": [
+        "components\\MainPanel.tsx",
+        "components\\Shell.tsx",
+        "components\\Sidebar.test.tsx",
+        "components\\Sidebar.tsx",
+        "lib\\settings.ts"
+      ],
+      "workflows": [
+        "User can review profile information",
+        "User can sign out from the workspace"
+      ]
+    },
+    {
+      "feature_id": "cli-workflow",
+      "name": "CLI Workflow",
+      "summary": "Command-line workflows that drive indexing, generation, and planning.",
+      "confidence": 0.98,
+      "artifacts": [
+        {
+          "artifact_id": "cli-workflow:components\\OutputPane.tsx",
+          "file_path": "components\\OutputPane.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 79,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, index in components\\OutputPane.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:components\\Shell.tsx",
+          "file_path": "components\\Shell.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, command in components\\Shell.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:components\\Sidebar.test.tsx",
+          "file_path": "components\\Sidebar.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 33,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click in components\\Sidebar.test.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:components\\Sidebar.tsx",
+          "file_path": "components\\Sidebar.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 92,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click in components\\Sidebar.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\artifacts.ts",
+          "file_path": "lib\\artifacts.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 374,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals command, generate, index in lib\\artifacts.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\bridge.test.ts",
+          "file_path": "lib\\bridge.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 112,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals command, index in lib\\bridge.test.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\commands.ts",
+          "file_path": "lib\\commands.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 27,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals command in lib\\commands.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\csv.ts",
+          "file_path": "lib\\csv.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 52,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click in lib\\csv.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\pipeline-run.test.ts",
+          "file_path": "lib\\pipeline-run.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 121,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals generate, index in lib\\pipeline-run.test.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\pipeline-run.ts",
+          "file_path": "lib\\pipeline-run.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 67,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals index in lib\\pipeline-run.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\pipeline.ts",
+          "file_path": "lib\\pipeline.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 59,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals command, generate, index, plan in lib\\pipeline.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\platform.ts",
+          "file_path": "lib\\platform.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 30,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals command in lib\\platform.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\runs.ts",
+          "file_path": "lib\\runs.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 101,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals command in lib\\runs.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\settings.ts",
+          "file_path": "lib\\settings.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 119,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, command in lib\\settings.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\tauri.ts",
+          "file_path": "lib\\tauri.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 21,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals command in lib\\tauri.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, command, index in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:main.tsx",
+          "file_path": "main.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 10,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli in main.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\AuditLog.tsx",
+          "file_path": "sections\\AuditLog.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 402,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click in sections\\AuditLog.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\CodegenStream.tsx",
+          "file_path": "sections\\CodegenStream.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 230,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click in sections\\CodegenStream.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Coverage.test.tsx",
+          "file_path": "sections\\Coverage.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 146,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, generate in sections\\Coverage.test.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Coverage.tsx",
+          "file_path": "sections\\Coverage.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 472,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, generate in sections\\Coverage.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\FlowGraph.test.tsx",
+          "file_path": "sections\\FlowGraph.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click in sections\\FlowGraph.test.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\FlowGraph.tsx",
+          "file_path": "sections\\FlowGraph.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 366,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, index in sections\\FlowGraph.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Generation.test.tsx",
+          "file_path": "sections\\Generation.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 159,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, generate, index in sections\\Generation.test.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Generation.tsx",
+          "file_path": "sections\\Generation.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 192,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, generate in sections\\Generation.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\IndexCtas.test.tsx",
+          "file_path": "sections\\IndexCtas.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 352,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, command, index in sections\\IndexCtas.test.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Inspect.tsx",
+          "file_path": "sections\\Inspect.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 255,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, generate in sections\\Inspect.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\MemoryMap.tsx",
+          "file_path": "sections\\MemoryMap.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 253,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, index in sections\\MemoryMap.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\MemoryMapStates.test.tsx",
+          "file_path": "sections\\MemoryMapStates.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 201,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, index in sections\\MemoryMapStates.test.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Rag.tsx",
+          "file_path": "sections\\Rag.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 209,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, index in sections\\Rag.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Repository.tsx",
+          "file_path": "sections\\Repository.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 159,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click, command, index in sections\\Repository.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:sections\\Settings.tsx",
+          "file_path": "sections\\Settings.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 452,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, click in sections\\Settings.tsx"
+        },
+        {
+          "artifact_id": "cli-workflow:state\\pipeline.test.ts",
+          "file_path": "state\\pipeline.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 47,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals generate, index, plan in state\\pipeline.test.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:state\\ui.ts",
+          "file_path": "state\\ui.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 85,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals generate in state\\ui.ts"
+        },
+        {
+          "artifact_id": "cli-workflow:styles.css",
+          "file_path": "styles.css",
+          "language": "css",
+          "start_line": 1,
+          "end_line": 65,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals index in styles.css"
+        },
+        {
+          "artifact_id": "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 479,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, command in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs"
+        },
+        {
+          "artifact_id": "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 1024,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, command, generate, index in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+        },
+        {
+          "artifact_id": "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 358,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, command, generate, index in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs"
+        },
+        {
+          "artifact_id": "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 166,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli, command, generate, index in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+        },
+        {
+          "artifact_id": "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "language": "json",
+          "start_line": 1,
+          "end_line": 63,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals cli in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+        }
+      ],
+      "entry_points": [
+        "components\\OutputPane.tsx",
+        "components\\Shell.tsx",
+        "components\\Sidebar.test.tsx",
+        "components\\Sidebar.tsx",
+        "lib\\artifacts.ts"
+      ],
+      "workflows": [
+        "User indexes a repository from the CLI",
+        "User generates a test from saved memory"
+      ]
+    },
+    {
+      "feature_id": "repository-analysis",
+      "name": "Repository Analysis",
+      "summary": "Repository discovery, chunking, indexing, and memory-building capabilities.",
+      "confidence": 0.98,
+      "artifacts": [
+        {
+          "artifact_id": "repository-analysis:components\\MainPanel.tsx",
+          "file_path": "components\\MainPanel.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 82,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals memory map, repository in components\\MainPanel.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:components\\Sidebar.test.tsx",
+          "file_path": "components\\Sidebar.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 33,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals memory map, repository in components\\Sidebar.test.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:components\\Sidebar.tsx",
+          "file_path": "components\\Sidebar.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 92,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals memory map, repository in components\\Sidebar.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:lib\\artifacts.fused.test.ts",
+          "file_path": "lib\\artifacts.fused.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 76,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals chunk in lib\\artifacts.fused.test.ts"
+        },
+        {
+          "artifact_id": "repository-analysis:lib\\artifacts.ts",
+          "file_path": "lib\\artifacts.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 374,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals chunk in lib\\artifacts.ts"
+        },
+        {
+          "artifact_id": "repository-analysis:lib\\bridge.test.ts",
+          "file_path": "lib\\bridge.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 112,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in lib\\bridge.test.ts"
+        },
+        {
+          "artifact_id": "repository-analysis:lib\\commands.ts",
+          "file_path": "lib\\commands.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 27,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in lib\\commands.ts"
+        },
+        {
+          "artifact_id": "repository-analysis:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\AuditLog.tsx",
+          "file_path": "sections\\AuditLog.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 402,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\AuditLog.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\CodegenStream.tsx",
+          "file_path": "sections\\CodegenStream.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 230,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\CodegenStream.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\Coverage.tsx",
+          "file_path": "sections\\Coverage.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 472,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\Coverage.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\FlowGraph.tsx",
+          "file_path": "sections\\FlowGraph.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 366,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\FlowGraph.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\Generation.test.tsx",
+          "file_path": "sections\\Generation.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 159,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\Generation.test.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\Generation.tsx",
+          "file_path": "sections\\Generation.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 192,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\Generation.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\IndexCtas.test.tsx",
+          "file_path": "sections\\IndexCtas.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 352,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals memory map, repository in sections\\IndexCtas.test.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\Inspect.tsx",
+          "file_path": "sections\\Inspect.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 255,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\Inspect.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\MemoryMap.tsx",
+          "file_path": "sections\\MemoryMap.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 253,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals chunk, memory map, repository in sections\\MemoryMap.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\MemoryMapStates.test.tsx",
+          "file_path": "sections\\MemoryMapStates.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 201,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals chunk, memory map, repository in sections\\MemoryMapStates.test.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\Rag.tsx",
+          "file_path": "sections\\Rag.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 209,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in sections\\Rag.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:sections\\Repository.tsx",
+          "file_path": "sections\\Repository.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 159,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals memory map, repository in sections\\Repository.tsx"
+        },
+        {
+          "artifact_id": "repository-analysis:state\\ui.ts",
+          "file_path": "state\\ui.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 85,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in state\\ui.ts"
+        },
+        {
+          "artifact_id": "repository-analysis:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 1024,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+        },
+        {
+          "artifact_id": "repository-analysis:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 358,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals chunk, embed, memory map, repository in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs"
+        },
+        {
+          "artifact_id": "repository-analysis:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 166,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals repository in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+        }
+      ],
+      "entry_points": [
+        "components\\MainPanel.tsx",
+        "components\\Sidebar.test.tsx",
+        "components\\Sidebar.tsx",
+        "lib\\artifacts.fused.test.ts",
+        "lib\\artifacts.ts"
+      ],
+      "workflows": [
+        "Repository files are grouped into meaningful feature areas"
+      ]
+    },
+    {
+      "feature_id": "test-generation",
+      "name": "Test Generation",
+      "summary": "Prompt building and test-generation behavior driven by repository context.",
+      "confidence": 0.98,
+      "artifacts": [
+        {
+          "artifact_id": "test-generation:components\\Shell.tsx",
+          "file_path": "components\\Shell.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright in components\\Shell.tsx"
+        },
+        {
+          "artifact_id": "test-generation:components\\Sidebar.test.tsx",
+          "file_path": "components\\Sidebar.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 33,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in components\\Sidebar.test.tsx"
+        },
+        {
+          "artifact_id": "test-generation:components\\Sidebar.tsx",
+          "file_path": "components\\Sidebar.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 92,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright in components\\Sidebar.tsx"
+        },
+        {
+          "artifact_id": "test-generation:lib\\artifacts.fused.test.ts",
+          "file_path": "lib\\artifacts.fused.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 76,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in lib\\artifacts.fused.test.ts"
+        },
+        {
+          "artifact_id": "test-generation:lib\\bridge.test.ts",
+          "file_path": "lib\\bridge.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 112,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in lib\\bridge.test.ts"
+        },
+        {
+          "artifact_id": "test-generation:lib\\pipeline-run.test.ts",
+          "file_path": "lib\\pipeline-run.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 121,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in lib\\pipeline-run.test.ts"
+        },
+        {
+          "artifact_id": "test-generation:lib\\runs.ts",
+          "file_path": "lib\\runs.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 101,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals test in lib\\runs.ts"
+        },
+        {
+          "artifact_id": "test-generation:lib\\settings.ts",
+          "file_path": "lib\\settings.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 119,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright in lib\\settings.ts"
+        },
+        {
+          "artifact_id": "test-generation:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, playwright, test in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\AuditLog.tsx",
+          "file_path": "sections\\AuditLog.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 402,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals test in sections\\AuditLog.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\Coverage.test.tsx",
+          "file_path": "sections\\Coverage.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 146,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, playwright, test in sections\\Coverage.test.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\Coverage.tsx",
+          "file_path": "sections\\Coverage.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 472,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright, test in sections\\Coverage.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\FlowGraph.test.tsx",
+          "file_path": "sections\\FlowGraph.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 111,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in sections\\FlowGraph.test.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\FlowGraph.tsx",
+          "file_path": "sections\\FlowGraph.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 366,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright in sections\\FlowGraph.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\Generation.test.tsx",
+          "file_path": "sections\\Generation.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 159,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, selector, test in sections\\Generation.test.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\Generation.tsx",
+          "file_path": "sections\\Generation.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 192,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals test in sections\\Generation.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\IndexCtas.test.tsx",
+          "file_path": "sections\\IndexCtas.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 352,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in sections\\IndexCtas.test.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\Inspect.tsx",
+          "file_path": "sections\\Inspect.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 255,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals test in sections\\Inspect.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\MemoryMapStates.test.tsx",
+          "file_path": "sections\\MemoryMapStates.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 201,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in sections\\MemoryMapStates.test.tsx"
+        },
+        {
+          "artifact_id": "test-generation:sections\\Settings.tsx",
+          "file_path": "sections\\Settings.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 452,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright in sections\\Settings.tsx"
+        },
+        {
+          "artifact_id": "test-generation:state\\pipeline.test.ts",
+          "file_path": "state\\pipeline.test.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 47,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, test in state\\pipeline.test.ts"
+        },
+        {
+          "artifact_id": "test-generation:state\\ui.ts",
+          "file_path": "state\\ui.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 85,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals test in state\\ui.ts"
+        },
+        {
+          "artifact_id": "test-generation:test\\setup.ts",
+          "file_path": "test\\setup.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 1,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals test in test\\setup.ts"
+        },
+        {
+          "artifact_id": "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 479,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright, test in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\settings.rs"
+        },
+        {
+          "artifact_id": "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 1024,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, playwright, test in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+        },
+        {
+          "artifact_id": "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 358,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright, test in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\artifacts.rs"
+        },
+        {
+          "artifact_id": "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+          "language": "rust",
+          "start_line": 1,
+          "end_line": 166,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals expect, playwright in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+        },
+        {
+          "artifact_id": "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "file_path": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+          "language": "json",
+          "start_line": 1,
+          "end_line": 63,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals playwright, test in C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+        }
+      ],
+      "entry_points": [
+        "components\\Shell.tsx",
+        "components\\Sidebar.test.tsx",
+        "components\\Sidebar.tsx",
+        "lib\\artifacts.fused.test.ts",
+        "lib\\bridge.test.ts"
+      ],
+      "workflows": [
+        "User receives generated Playwright coverage recommendations"
+      ]
+    },
+    {
+      "feature_id": "documentation",
+      "name": "Documentation",
+      "summary": "User-facing guidance that explains workflows and expected outcomes.",
+      "confidence": 0.75,
+      "artifacts": [
+        {
+          "artifact_id": "documentation:lib\\artifacts.ts",
+          "file_path": "lib\\artifacts.ts",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 374,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals readme in lib\\artifacts.ts"
+        },
+        {
+          "artifact_id": "documentation:lib\\wrappers.test.tsx",
+          "file_path": "lib\\wrappers.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 361,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals readme in lib\\wrappers.test.tsx"
+        },
+        {
+          "artifact_id": "documentation:sections\\IndexCtas.test.tsx",
+          "file_path": "sections\\IndexCtas.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 352,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals readme in sections\\IndexCtas.test.tsx"
+        },
+        {
+          "artifact_id": "documentation:sections\\MemoryMap.tsx",
+          "file_path": "sections\\MemoryMap.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 253,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals readme in sections\\MemoryMap.tsx"
+        },
+        {
+          "artifact_id": "documentation:sections\\MemoryMapStates.test.tsx",
+          "file_path": "sections\\MemoryMapStates.test.tsx",
+          "language": "typescript",
+          "start_line": 1,
+          "end_line": 201,
+          "signal_type": "keyword-match",
+          "summary": "Matched feature signals readme in sections\\MemoryMapStates.test.tsx"
+        }
+      ],
+      "entry_points": [
+        "lib\\artifacts.ts",
+        "lib\\wrappers.test.tsx",
+        "sections\\IndexCtas.test.tsx",
+        "sections\\MemoryMap.tsx",
+        "sections\\MemoryMapStates.test.tsx"
+      ],
+      "workflows": [
+        "User can follow the documented setup and workflow"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "correlation_id": "authentication:navigation",
+      "source_feature_id": "authentication",
+      "target_feature_id": "navigation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:sections\\Settings.tsx",
+        "navigation:sections\\Settings.tsx"
+      ],
+      "summary": "authentication and navigation both rely on sections\\Settings.tsx"
+    },
+    {
+      "correlation_id": "authentication:repository-analysis",
+      "source_feature_id": "authentication",
+      "target_feature_id": "repository-analysis",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "repository-analysis:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "summary": "authentication and repository-analysis both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+    },
+    {
+      "correlation_id": "authentication:test-generation",
+      "source_feature_id": "authentication",
+      "target_feature_id": "test-generation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "summary": "authentication and test-generation both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+    },
+    {
+      "correlation_id": "navigation:repository-analysis",
+      "source_feature_id": "navigation",
+      "target_feature_id": "repository-analysis",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:sections\\Inspect.tsx",
+        "repository-analysis:sections\\Inspect.tsx"
+      ],
+      "summary": "navigation and repository-analysis both rely on sections\\Inspect.tsx"
+    },
+    {
+      "correlation_id": "navigation:test-generation",
+      "source_feature_id": "navigation",
+      "target_feature_id": "test-generation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:sections\\Inspect.tsx",
+        "test-generation:sections\\Inspect.tsx"
+      ],
+      "summary": "navigation and test-generation both rely on sections\\Inspect.tsx"
+    },
+    {
+      "correlation_id": "repository-analysis:test-generation",
+      "source_feature_id": "repository-analysis",
+      "target_feature_id": "test-generation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "repository-analysis:state\\ui.ts",
+        "test-generation:state\\ui.ts"
+      ],
+      "summary": "repository-analysis and test-generation both rely on state\\ui.ts"
+    },
+    {
+      "correlation_id": "authentication:cli-workflow",
+      "source_feature_id": "authentication",
+      "target_feature_id": "cli-workflow",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "summary": "authentication and cli-workflow both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+    },
+    {
+      "correlation_id": "cli-workflow:navigation",
+      "source_feature_id": "cli-workflow",
+      "target_feature_id": "navigation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:sections\\Inspect.tsx",
+        "navigation:sections\\Inspect.tsx"
+      ],
+      "summary": "cli-workflow and navigation both rely on sections\\Inspect.tsx"
+    },
+    {
+      "correlation_id": "cli-workflow:repository-analysis",
+      "source_feature_id": "cli-workflow",
+      "target_feature_id": "repository-analysis",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:sections\\Repository.tsx",
+        "repository-analysis:sections\\Repository.tsx"
+      ],
+      "summary": "cli-workflow and repository-analysis both rely on sections\\Repository.tsx"
+    },
+    {
+      "correlation_id": "cli-workflow:test-generation",
+      "source_feature_id": "cli-workflow",
+      "target_feature_id": "test-generation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:state\\ui.ts",
+        "test-generation:state\\ui.ts"
+      ],
+      "summary": "cli-workflow and test-generation both rely on state\\ui.ts"
+    },
+    {
+      "correlation_id": "authentication:documentation",
+      "source_feature_id": "authentication",
+      "target_feature_id": "documentation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:sections\\MemoryMapStates.test.tsx",
+        "documentation:sections\\MemoryMapStates.test.tsx"
+      ],
+      "summary": "authentication and documentation both rely on sections\\MemoryMapStates.test.tsx"
+    },
+    {
+      "correlation_id": "authentication:profile-settings",
+      "source_feature_id": "authentication",
+      "target_feature_id": "profile-settings",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "summary": "authentication and profile-settings both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+    },
+    {
+      "correlation_id": "authentication:todo-management",
+      "source_feature_id": "authentication",
+      "target_feature_id": "todo-management",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "summary": "authentication and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+    },
+    {
+      "correlation_id": "cli-workflow:documentation",
+      "source_feature_id": "cli-workflow",
+      "target_feature_id": "documentation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:lib\\artifacts.ts",
+        "documentation:lib\\artifacts.ts"
+      ],
+      "summary": "cli-workflow and documentation both rely on lib\\artifacts.ts"
+    },
+    {
+      "correlation_id": "cli-workflow:profile-settings",
+      "source_feature_id": "cli-workflow",
+      "target_feature_id": "profile-settings",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:state\\ui.ts",
+        "profile-settings:state\\ui.ts"
+      ],
+      "summary": "cli-workflow and profile-settings both rely on state\\ui.ts"
+    },
+    {
+      "correlation_id": "cli-workflow:todo-management",
+      "source_feature_id": "cli-workflow",
+      "target_feature_id": "todo-management",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "summary": "cli-workflow and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+    },
+    {
+      "correlation_id": "documentation:navigation",
+      "source_feature_id": "documentation",
+      "target_feature_id": "navigation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:lib\\artifacts.ts",
+        "navigation:lib\\artifacts.ts"
+      ],
+      "summary": "documentation and navigation both rely on lib\\artifacts.ts"
+    },
+    {
+      "correlation_id": "documentation:profile-settings",
+      "source_feature_id": "documentation",
+      "target_feature_id": "profile-settings",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:lib\\wrappers.test.tsx",
+        "profile-settings:lib\\wrappers.test.tsx"
+      ],
+      "summary": "documentation and profile-settings both rely on lib\\wrappers.test.tsx"
+    },
+    {
+      "correlation_id": "documentation:repository-analysis",
+      "source_feature_id": "documentation",
+      "target_feature_id": "repository-analysis",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:lib\\artifacts.ts",
+        "repository-analysis:lib\\artifacts.ts"
+      ],
+      "summary": "documentation and repository-analysis both rely on lib\\artifacts.ts"
+    },
+    {
+      "correlation_id": "documentation:test-generation",
+      "source_feature_id": "documentation",
+      "target_feature_id": "test-generation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:sections\\MemoryMapStates.test.tsx",
+        "test-generation:sections\\MemoryMapStates.test.tsx"
+      ],
+      "summary": "documentation and test-generation both rely on sections\\MemoryMapStates.test.tsx"
+    },
+    {
+      "correlation_id": "documentation:todo-management",
+      "source_feature_id": "documentation",
+      "target_feature_id": "todo-management",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:sections\\MemoryMap.tsx",
+        "todo-management:sections\\MemoryMap.tsx"
+      ],
+      "summary": "documentation and todo-management both rely on sections\\MemoryMap.tsx"
+    },
+    {
+      "correlation_id": "navigation:profile-settings",
+      "source_feature_id": "navigation",
+      "target_feature_id": "profile-settings",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:components\\Sidebar.tsx",
+        "profile-settings:components\\Sidebar.tsx"
+      ],
+      "summary": "navigation and profile-settings both rely on components\\Sidebar.tsx"
+    },
+    {
+      "correlation_id": "navigation:todo-management",
+      "source_feature_id": "navigation",
+      "target_feature_id": "todo-management",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "summary": "navigation and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+    },
+    {
+      "correlation_id": "profile-settings:repository-analysis",
+      "source_feature_id": "profile-settings",
+      "target_feature_id": "repository-analysis",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "profile-settings:state\\ui.ts",
+        "repository-analysis:state\\ui.ts"
+      ],
+      "summary": "profile-settings and repository-analysis both rely on state\\ui.ts"
+    },
+    {
+      "correlation_id": "profile-settings:test-generation",
+      "source_feature_id": "profile-settings",
+      "target_feature_id": "test-generation",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "profile-settings:state\\ui.ts",
+        "test-generation:state\\ui.ts"
+      ],
+      "summary": "profile-settings and test-generation both rely on state\\ui.ts"
+    },
+    {
+      "correlation_id": "profile-settings:todo-management",
+      "source_feature_id": "profile-settings",
+      "target_feature_id": "todo-management",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+      ],
+      "summary": "profile-settings and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+    },
+    {
+      "correlation_id": "repository-analysis:todo-management",
+      "source_feature_id": "repository-analysis",
+      "target_feature_id": "todo-management",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "repository-analysis:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+      ],
+      "summary": "repository-analysis and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+    },
+    {
+      "correlation_id": "test-generation:todo-management",
+      "source_feature_id": "test-generation",
+      "target_feature_id": "todo-management",
+      "relationship_type": "shared-artifact",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "summary": "test-generation and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+    }
+  ],
+  "test_opportunities": [
+    {
+      "opportunity_id": "authentication:opportunity:1",
+      "feature_id": "authentication",
+      "title": "User can sign in with valid credentials",
+      "priority": "high",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "authentication:lib\\artifacts.fused.test.ts",
+        "authentication:lib\\bridge.test.ts",
+        "authentication:lib\\pipeline-run.test.ts"
+      ],
+      "preconditions": [
+        "Application is reachable at the configured base URL"
+      ],
+      "assertions": [
+        "User signs in with valid credentials",
+        "User sees a friendly error for invalid credentials"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:opportunity:2",
+      "feature_id": "authentication",
+      "title": "Invalid credentials show an actionable error",
+      "priority": "medium",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "authentication:lib\\artifacts.fused.test.ts",
+        "authentication:lib\\bridge.test.ts",
+        "authentication:lib\\pipeline-run.test.ts"
+      ],
+      "preconditions": [
+        "Application is reachable at the configured base URL"
+      ],
+      "assertions": [
+        "User signs in with valid credentials",
+        "User sees a friendly error for invalid credentials"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "todo-management:opportunity:1",
+      "feature_id": "todo-management",
+      "title": "User can add a todo item",
+      "priority": "high",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "todo-management:components\\MainPanel.tsx",
+        "todo-management:components\\Shell.tsx",
+        "todo-management:lib\\settings.ts"
+      ],
+      "preconditions": [
+        "User is authenticated before mutating todo data"
+      ],
+      "assertions": [
+        "User adds a new todo item",
+        "User completes and deletes an existing todo"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "todo-management:opportunity:2",
+      "feature_id": "todo-management",
+      "title": "User can complete and delete a todo item",
+      "priority": "medium",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "todo-management:components\\MainPanel.tsx",
+        "todo-management:components\\Shell.tsx",
+        "todo-management:lib\\settings.ts"
+      ],
+      "preconditions": [
+        "User is authenticated before mutating todo data"
+      ],
+      "assertions": [
+        "User adds a new todo item",
+        "User completes and deletes an existing todo"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "navigation:opportunity:1",
+      "feature_id": "navigation",
+      "title": "User can navigate between primary pages",
+      "priority": "high",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "navigation:components\\Sidebar.test.tsx",
+        "navigation:components\\Sidebar.tsx",
+        "navigation:lib\\artifacts.fused.test.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "User can move between primary sections"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "profile-settings:opportunity:1",
+      "feature_id": "profile-settings",
+      "title": "User can view profile details",
+      "priority": "high",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "profile-settings:components\\MainPanel.tsx",
+        "profile-settings:components\\Shell.tsx",
+        "profile-settings:components\\Sidebar.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "User can review profile information",
+        "User can sign out from the workspace"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "profile-settings:opportunity:2",
+      "feature_id": "profile-settings",
+      "title": "User can sign out from settings",
+      "priority": "medium",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "profile-settings:components\\MainPanel.tsx",
+        "profile-settings:components\\Shell.tsx",
+        "profile-settings:components\\Sidebar.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "User can review profile information",
+        "User can sign out from the workspace"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:opportunity:1",
+      "feature_id": "cli-workflow",
+      "title": "User can index a repository from the CLI",
+      "priority": "high",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "cli-workflow:components\\OutputPane.tsx",
+        "cli-workflow:components\\Shell.tsx",
+        "cli-workflow:components\\Sidebar.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "User indexes a repository from the CLI",
+        "User generates a test from saved memory"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:opportunity:2",
+      "feature_id": "cli-workflow",
+      "title": "User can generate output from saved memory",
+      "priority": "medium",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "cli-workflow:components\\OutputPane.tsx",
+        "cli-workflow:components\\Shell.tsx",
+        "cli-workflow:components\\Sidebar.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "User indexes a repository from the CLI",
+        "User generates a test from saved memory"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "repository-analysis:opportunity:1",
+      "feature_id": "repository-analysis",
+      "title": "Repository analysis groups related artifacts",
+      "priority": "high",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "repository-analysis:components\\MainPanel.tsx",
+        "repository-analysis:components\\Sidebar.test.tsx",
+        "repository-analysis:components\\Sidebar.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "Repository files are grouped into meaningful feature areas"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "test-generation:opportunity:1",
+      "feature_id": "test-generation",
+      "title": "User receives evidence-backed Playwright coverage recommendations",
+      "priority": "high",
+      "confidence": 0.98,
+      "evidence_ids": [
+        "test-generation:components\\Shell.tsx",
+        "test-generation:components\\Sidebar.test.tsx",
+        "test-generation:components\\Sidebar.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "User receives generated Playwright coverage recommendations"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "documentation:opportunity:1",
+      "feature_id": "documentation",
+      "title": "User can follow the documented CLI workflow",
+      "priority": "high",
+      "confidence": 0.75,
+      "evidence_ids": [
+        "documentation:lib\\artifacts.ts",
+        "documentation:lib\\wrappers.test.tsx",
+        "documentation:sections\\IndexCtas.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "User can follow the documented setup and workflow"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:navigation:flow",
+      "feature_id": "authentication",
+      "title": "Authentication and Navigation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:sections\\Settings.tsx",
+        "navigation:sections\\Settings.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "authentication and navigation both rely on sections\\Settings.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:repository-analysis:flow",
+      "feature_id": "authentication",
+      "title": "Authentication and Repository Analysis work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "repository-analysis:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "authentication and repository-analysis both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:test-generation:flow",
+      "feature_id": "authentication",
+      "title": "Authentication and Test Generation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "authentication and test-generation both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "navigation:repository-analysis:flow",
+      "feature_id": "navigation",
+      "title": "Navigation and Repository Analysis work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:sections\\Inspect.tsx",
+        "repository-analysis:sections\\Inspect.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "navigation and repository-analysis both rely on sections\\Inspect.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "navigation:test-generation:flow",
+      "feature_id": "navigation",
+      "title": "Navigation and Test Generation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:sections\\Inspect.tsx",
+        "test-generation:sections\\Inspect.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "navigation and test-generation both rely on sections\\Inspect.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "repository-analysis:test-generation:flow",
+      "feature_id": "repository-analysis",
+      "title": "Repository Analysis and Test Generation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "repository-analysis:state\\ui.ts",
+        "test-generation:state\\ui.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "repository-analysis and test-generation both rely on state\\ui.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:cli-workflow:flow",
+      "feature_id": "authentication",
+      "title": "Authentication and CLI Workflow work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "authentication and cli-workflow both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:navigation:flow",
+      "feature_id": "cli-workflow",
+      "title": "CLI Workflow and Navigation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:sections\\Inspect.tsx",
+        "navigation:sections\\Inspect.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "cli-workflow and navigation both rely on sections\\Inspect.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:repository-analysis:flow",
+      "feature_id": "cli-workflow",
+      "title": "CLI Workflow and Repository Analysis work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:sections\\Repository.tsx",
+        "repository-analysis:sections\\Repository.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "cli-workflow and repository-analysis both rely on sections\\Repository.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:test-generation:flow",
+      "feature_id": "cli-workflow",
+      "title": "CLI Workflow and Test Generation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:state\\ui.ts",
+        "test-generation:state\\ui.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "cli-workflow and test-generation both rely on state\\ui.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:documentation:flow",
+      "feature_id": "authentication",
+      "title": "Authentication and Documentation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:sections\\MemoryMapStates.test.tsx",
+        "documentation:sections\\MemoryMapStates.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "authentication and documentation both rely on sections\\MemoryMapStates.test.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:profile-settings:flow",
+      "feature_id": "authentication",
+      "title": "Authentication and Profile and Settings work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "authentication and profile-settings both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "authentication:todo-management:flow",
+      "feature_id": "authentication",
+      "title": "Authentication and Todo Management work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "authentication:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "authentication and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\pipeline.rs"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:documentation:flow",
+      "feature_id": "cli-workflow",
+      "title": "CLI Workflow and Documentation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:lib\\artifacts.ts",
+        "documentation:lib\\artifacts.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "cli-workflow and documentation both rely on lib\\artifacts.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:profile-settings:flow",
+      "feature_id": "cli-workflow",
+      "title": "CLI Workflow and Profile and Settings work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:state\\ui.ts",
+        "profile-settings:state\\ui.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "cli-workflow and profile-settings both rely on state\\ui.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "cli-workflow:todo-management:flow",
+      "feature_id": "cli-workflow",
+      "title": "CLI Workflow and Todo Management work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "cli-workflow:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "cli-workflow and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "documentation:navigation:flow",
+      "feature_id": "documentation",
+      "title": "Documentation and Navigation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:lib\\artifacts.ts",
+        "navigation:lib\\artifacts.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "documentation and navigation both rely on lib\\artifacts.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "documentation:profile-settings:flow",
+      "feature_id": "documentation",
+      "title": "Documentation and Profile and Settings work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:lib\\wrappers.test.tsx",
+        "profile-settings:lib\\wrappers.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "documentation and profile-settings both rely on lib\\wrappers.test.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "documentation:repository-analysis:flow",
+      "feature_id": "documentation",
+      "title": "Documentation and Repository Analysis work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:lib\\artifacts.ts",
+        "repository-analysis:lib\\artifacts.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "documentation and repository-analysis both rely on lib\\artifacts.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "documentation:test-generation:flow",
+      "feature_id": "documentation",
+      "title": "Documentation and Test Generation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:sections\\MemoryMapStates.test.tsx",
+        "test-generation:sections\\MemoryMapStates.test.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "documentation and test-generation both rely on sections\\MemoryMapStates.test.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "documentation:todo-management:flow",
+      "feature_id": "documentation",
+      "title": "Documentation and Todo Management work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "documentation:sections\\MemoryMap.tsx",
+        "todo-management:sections\\MemoryMap.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "documentation and todo-management both rely on sections\\MemoryMap.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "navigation:profile-settings:flow",
+      "feature_id": "navigation",
+      "title": "Navigation and Profile and Settings work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:components\\Sidebar.tsx",
+        "profile-settings:components\\Sidebar.tsx"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "navigation and profile-settings both rely on components\\Sidebar.tsx"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "navigation:todo-management:flow",
+      "feature_id": "navigation",
+      "title": "Navigation and Todo Management work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "navigation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "navigation and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "profile-settings:repository-analysis:flow",
+      "feature_id": "profile-settings",
+      "title": "Profile and Settings and Repository Analysis work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "profile-settings:state\\ui.ts",
+        "repository-analysis:state\\ui.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "profile-settings and repository-analysis both rely on state\\ui.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "profile-settings:test-generation:flow",
+      "feature_id": "profile-settings",
+      "title": "Profile and Settings and Test Generation work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "profile-settings:state\\ui.ts",
+        "test-generation:state\\ui.ts"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "profile-settings and test-generation both rely on state\\ui.ts"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "profile-settings:todo-management:flow",
+      "feature_id": "profile-settings",
+      "title": "Profile and Settings and Todo Management work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "profile-settings:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "profile-settings and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "repository-analysis:todo-management:flow",
+      "feature_id": "repository-analysis",
+      "title": "Repository Analysis and Todo Management work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "repository-analysis:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "repository-analysis and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src-tauri\\src\\lib.rs"
+      ],
+      "uncertainty_notes": []
+    },
+    {
+      "opportunity_id": "test-generation:todo-management:flow",
+      "feature_id": "test-generation",
+      "title": "Test Generation and Todo Management work together",
+      "priority": "medium",
+      "confidence": 0.65,
+      "evidence_ids": [
+        "test-generation:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json",
+        "todo-management:C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "preconditions": [],
+      "assertions": [
+        "test-generation and todo-management both rely on C:\\Users\\mmart\\projects\\playwright-god\\desktop\\package.json"
+      ],
+      "uncertainty_notes": []
+    }
+  ],
+  "source_root": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src",
+  "repo_profile": {
+    "source_root": "C:\\Users\\mmart\\projects\\playwright-god\\desktop\\src",
+    "languages": {
+      "typescript": 42,
+      "rust": 4,
+      "css": 1,
+      "json": 1
+    },
+    "frameworks": [],
+    "package_managers": [],
+    "build_tools": [],
+    "test_frameworks": [],
+    "archetype": "unknown",
+    "confidence": 0.13,
+    "startup_candidates": [],
+    "runtime_targets": [],
+    "auth_profile": {
+      "type": "basic",
+      "confidence": 0.95,
+      "signals": [
+        "login",
+        "login",
+        "login",
+        "login",
+        "login",
+        "login",
+        "login",
+        "login"
+      ]
+    },
+    "environment_profile": {
+      "env_vars": [],
+      "seed_signals": [
+        "lib\\bridge.test.ts",
+        "lib\\pipeline-run.test.ts",
+        "lib\\settings.ts",
+        "lib\\wrappers.test.tsx",
+        "sections\\Coverage.test.tsx",
+        "sections\\FlowGraph.test.tsx",
+        "sections\\Generation.test.tsx",
+        "sections\\IndexCtas.test.tsx",
+        "sections\\MemoryMapStates.test.tsx",
+        "sections\\Settings.tsx",
+        "state\\pipeline.test.ts",
+        "state\\pipeline.ts"
+      ]
+    },
+    "bootstrap_steps": [
+      "Run seed/bootstrap scripts if the app requires initial state."
+    ],
+    "state_recipes": [
+      {
+        "title": "Authenticate before protected flows",
+        "steps": [
+          "Load credentials from environment variables.",
+          "Establish session or token using the repo's auth flow.",
+          "Persist auth state for follow-up journeys when practical."
+        ],
+        "confidence": 0.95,
+        "kind": "auth-bootstrap",
+        "required_env": [],
+        "blocking": false
+      },
+      {
+        "title": "Prepare deterministic test state",
+        "steps": [
+          "Run seed or fixture setup before the test session.",
+          "Reset shared data after destructive flows when needed."
+        ],
+        "confidence": 0.65,
+        "kind": "state-seed",
+        "required_env": [],
+        "blocking": false
+      }
+    ],
+    "blind_spots": [
+      {
+        "category": "extractor",
+        "summary": "No first-class surface extractor is registered for rust.",
+        "confidence": 0.8
+      },
+      {
+        "category": "runtime",
+        "summary": "No startup candidate was inferred; runtime discovery may need manual hints.",
+        "confidence": 0.7
+      }
+    ],
+    "notes": [
+      "Inferred archetype: unknown.",
+      "Authentication appears to use basic."
+    ],
+    "runtime_profile": {}
+  },
+  "frameworks": [],
+  "runtime_targets": [],
+  "startup_candidates": [],
+  "environment_profile": {
+    "env_vars": [],
+    "seed_signals": [
+      "lib\\bridge.test.ts",
+      "lib\\pipeline-run.test.ts",
+      "lib\\settings.ts",
+      "lib\\wrappers.test.tsx",
+      "sections\\Coverage.test.tsx",
+      "sections\\FlowGraph.test.tsx",
+      "sections\\Generation.test.tsx",
+      "sections\\IndexCtas.test.tsx",
+      "sections\\MemoryMapStates.test.tsx",
+      "sections\\Settings.tsx",
+      "state\\pipeline.test.ts",
+      "state\\pipeline.ts"
+    ]
+  },
+  "auth_profile": {
+    "type": "basic",
+    "confidence": 0.95,
+    "signals": [
+      "login",
+      "login",
+      "login",
+      "login",
+      "login",
+      "login",
+      "login",
+      "login"
+    ]
+  },
+  "bootstrap_steps": [
+    "Run seed/bootstrap scripts if the app requires initial state."
+  ],
+  "state_recipes": [
+    {
+      "title": "Authenticate before protected flows",
+      "steps": [
+        "Load credentials from environment variables.",
+        "Establish session or token using the repo's auth flow.",
+        "Persist auth state for follow-up journeys when practical."
+      ],
+      "confidence": 0.95,
+      "kind": "auth-bootstrap",
+      "required_env": [],
+      "blocking": false
+    },
+    {
+      "title": "Prepare deterministic test state",
+      "steps": [
+        "Run seed or fixture setup before the test session.",
+        "Reset shared data after destructive flows when needed."
+      ],
+      "confidence": 0.65,
+      "kind": "state-seed",
+      "required_env": [],
+      "blocking": false
+    }
+  ],
+  "runtime_profile": {}
+}

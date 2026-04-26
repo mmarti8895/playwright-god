@@ -48,6 +48,7 @@ from .runtime_bootstrap import resolve_launch_plan, runtime_context_block, start
 from .scenario_ranker import format_ranked_scenarios, rank_candidate_scenarios
 from .runner import PlaywrightRunner, RunResult, RunnerSetupError
 from .test_index import TestIndex
+from .retry import RetryPolicy, is_transient_llm_error, with_retry
 
 
 def _resolve_provider_config(
@@ -106,6 +107,29 @@ def _resolve_provider_config(
             resolved_ollama_url = env_ollama_url
 
     return resolved_provider, resolved_model, resolved_api_key, resolved_ollama_url
+
+
+def _format_llm_exception(exc: Exception) -> str:
+    """Render provider/transport failures as concise CLI-facing messages."""
+
+    message = str(exc).strip()
+    if message:
+        return message
+    return f"{exc.__class__.__name__} while contacting the configured LLM provider."
+
+
+def _resolve_retry_policy(retry_max: int | None, retry_delay: float | None) -> RetryPolicy:
+    """Build a RetryPolicy from CLI flags with env-var fallback."""
+    if retry_max is None:
+        env_val = os.environ.get("PLAYWRIGHT_GOD_RETRY_MAX", "").strip()
+        retry_max = int(env_val) if env_val.isdigit() else 3
+    if retry_delay is None:
+        env_val = os.environ.get("PLAYWRIGHT_GOD_RETRY_DELAY_S", "").strip()
+        try:
+            retry_delay = float(env_val) if env_val else 2.0
+        except ValueError:
+            retry_delay = 2.0
+    return RetryPolicy(max_attempts=retry_max, initial_delay_s=retry_delay)
 
 
 @click.group()
@@ -634,6 +658,26 @@ def discover(repo_path: str, run_probe: bool, json_output: bool) -> None:
     type=int,
     help="Maximum uncovered excerpts to include in the prompt.",
 )
+@click.option(
+    "--retry-max",
+    "retry_max",
+    default=None,
+    type=int,
+    help=(
+        "Maximum number of automatic retries on transient network errors "
+        "(0 = disabled). Defaults to PLAYWRIGHT_GOD_RETRY_MAX env var, fallback 3."
+    ),
+)
+@click.option(
+    "--retry-delay",
+    "retry_delay",
+    default=None,
+    type=float,
+    help=(
+        "Initial backoff delay in seconds before the first retry. "
+        "Defaults to PLAYWRIGHT_GOD_RETRY_DELAY_S env var, fallback 2.0."
+    ),
+)
 def generate(
     description: str,
     persist_dir: str,
@@ -661,6 +705,8 @@ def generate(
     backend_coverage_cmd: str | None,
     coverage_report_path: str | None,
     coverage_cap: int,
+    retry_max: int | None,
+    retry_delay: float | None,
 ) -> None:
     """Generate a Playwright test for the given DESCRIPTION.
 
@@ -866,20 +912,32 @@ def generate(
     if auth_type:
         click.echo(f"Auth type: {auth_type}", err=True)
 
+    retry_policy = _resolve_retry_policy(retry_max, retry_delay)
+
     try:
-        test_code = generator.generate(
-            description,
-            extra_context=extra_context,
-            auth_type=auth_type,
-            redact_secrets=redact_secrets,
-            uncovered_excerpts=uncovered_excerpts,
-            uncovered_cap=coverage_cap,
-            generation_mode=generation_mode,
-            repo_profile=repo_profile,
-            flow_graph=flow_graph,
+        test_code = with_retry(
+            retry_policy,
+            lambda: generator.generate(
+                description,
+                extra_context=extra_context,
+                auth_type=auth_type,
+                redact_secrets=redact_secrets,
+                uncovered_excerpts=uncovered_excerpts,
+                uncovered_cap=coverage_cap,
+                generation_mode=generation_mode,
+                repo_profile=repo_profile,
+                flow_graph=flow_graph,
+            ),
+            is_transient_llm_error,
         )
     except PlaywrightCLIError as exc:
         click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
+    except Exception as exc:
+        click.echo(
+            f"Error: failed to generate test via provider {provider}: {_format_llm_exception(exc)}",
+            err=True,
+        )
         sys.exit(2)
 
     if output:
@@ -1109,6 +1167,26 @@ def generate(
         "Annotates the plan with uncovered routes/actions."
     ),
 )
+@click.option(
+    "--retry-max",
+    "retry_max",
+    default=None,
+    type=int,
+    help=(
+        "Maximum number of automatic retries on transient network errors "
+        "(0 = disabled). Defaults to PLAYWRIGHT_GOD_RETRY_MAX env var, fallback 3."
+    ),
+)
+@click.option(
+    "--retry-delay",
+    "retry_delay",
+    default=None,
+    type=float,
+    help=(
+        "Initial backoff delay in seconds before the first retry. "
+        "Defaults to PLAYWRIGHT_GOD_RETRY_DELAY_S env var, fallback 2.0."
+    ),
+)
 def plan(
     memory_map: str | None,
     persist_dir: str,
@@ -1124,6 +1202,8 @@ def plan(
     coverage_report_path: str | None,
     prioritize: str,
     flow_graph_path: str | None,
+    retry_max: int | None,
+    retry_delay: float | None,
 ) -> None:
     """Generate an AI-powered Playwright test plan from the indexed codebase.
 
@@ -1258,13 +1338,26 @@ def plan(
     if ranked_block:
         memory_map_text += "\n\n" + ranked_block
 
-    plan_text = generator.plan(
-        memory_map_text,
-        focus=focus,
-        coverage=coverage_payload,
-        prioritize=prioritize.lower(),
-        flow_graph=loaded_flow_graph,
-    )
+    retry_policy = _resolve_retry_policy(retry_max, retry_delay)
+
+    try:
+        plan_text = with_retry(
+            retry_policy,
+            lambda: generator.plan(
+                memory_map_text,
+                focus=focus,
+                coverage=coverage_payload,
+                prioritize=prioritize.lower(),
+                flow_graph=loaded_flow_graph,
+            ),
+            is_transient_llm_error,
+        )
+    except Exception as exc:
+        click.echo(
+            f"Error: failed to generate plan via provider {provider}: {_format_llm_exception(exc)}",
+            err=True,
+        )
+        sys.exit(2)
 
     if output:
         with open(output, "w", encoding="utf-8") as fh:
@@ -1411,6 +1504,15 @@ def run(
             result = runner.run(spec_path)
     except RunnerSetupError as exc:
         click.echo(f"Error: {exc}", err=True)
+        sys.exit(2)
+    except FileNotFoundError as exc:
+        click.echo(
+            "Error: Failed to start Playwright subprocess. "
+            "Ensure Node.js/npx is installed and available on PATH, "
+            "and that --target-dir points to an existing Playwright project.",
+            err=True,
+        )
+        click.echo(f"Detail: {exc}", err=True)
         sys.exit(2)
 
     _print_run_summary(result, json_output=json_output)

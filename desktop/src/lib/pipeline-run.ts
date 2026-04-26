@@ -22,6 +22,9 @@ function applyPipelineEvent(event: PipelineEvent) {
     case "stderr-line":
       append("stderr", `[${event.step}] ${event.line}`);
       break;
+    case "diagnostic":
+      append("info", `DIAG ${event.step} [${event.category}]: ${event.message}`);
+      break;
     case "finished":
       append("info", `OK ${event.step}`);
       break;
@@ -41,9 +44,15 @@ function applyPipelineEvent(event: PipelineEvent) {
 export async function runManagedPipeline(
   repo: string,
   mode: PipelineMode = "full",
+  description = "",
 ): Promise<string | null> {
   try {
-    return await startPipeline(repo, applyPipelineEvent, mode);
+    return await startPipeline(
+      repo,
+      applyPipelineEvent,
+      mode,
+      mode === "full" ? description : undefined,
+    );
   } catch (error) {
     const label = mode === "index-only" ? "index run" : "pipeline";
     useOutputStore

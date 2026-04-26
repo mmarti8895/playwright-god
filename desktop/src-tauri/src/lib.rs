@@ -1,6 +1,7 @@
 //! Tauri 2 backend for the Playwright God desktop shell.
 
 mod cli_detect;
+mod coverage_run;
 mod pipeline;
 mod recent_repos;
 mod secrets;
@@ -17,6 +18,7 @@ use tauri::Runtime;
 use tauri_plugin_dialog::DialogExt;
 
 use pipeline::PipelineRegistry;
+use coverage_run::CoverageRegistry;
 
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
@@ -118,6 +120,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(PipelineRegistry::new())
+        .manage(CoverageRegistry::new())
         .setup(|app| {
             // Apply NSVisualEffectView vibrancy on macOS so the sidebar feels native.
             #[cfg(target_os = "macos")]
@@ -144,6 +147,7 @@ pub fn run() {
             settings::get_settings,
             settings::save_settings,
             settings::reset_settings,
+            settings::get_effective_settings_summary,
             secrets::get_secret,
             secrets::set_secret,
             secrets::delete_secret,
@@ -153,12 +157,15 @@ pub fn run() {
             artifacts::read_index_status,
             artifacts::read_flow_graph,
             artifacts::read_coverage,
+            artifacts::read_latest_spec_path,
             artifacts::rag_search,
             runs::list_runs,
             inspect::inspect_repo,
             inspect::discover_repo,
             inspect::preview_prompt,
             codegen_stream::tail_codegen,
+            coverage_run::run_coverage,
+            coverage_run::cancel_coverage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

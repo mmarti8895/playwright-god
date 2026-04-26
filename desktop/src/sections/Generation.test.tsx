@@ -39,7 +39,23 @@ describe("Generation", () => {
     expect(useUIStore.getState().generationPrompt).toBe("");
 
     fireEvent.click(screen.getByRole("button", { name: "Run Pipeline" }));
-    expect(runManagedPipeline).toHaveBeenCalledWith("/tmp/repo");
+    expect(runManagedPipeline).toHaveBeenCalledWith("/tmp/repo", "full", "prefill");
+  });
+
+  it("passes the typed description into the full pipeline", () => {
+    useUIStore.setState({ activeRepo: "/tmp/repo", generationPrompt: "" });
+
+    render(<Generation />);
+    fireEvent.change(screen.getByPlaceholderText("What should the next generated test cover?"), {
+      target: { value: "checkout edge case" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run Pipeline" }));
+
+    expect(runManagedPipeline).toHaveBeenCalledWith(
+      "/tmp/repo",
+      "full",
+      "checkout edge case",
+    );
   });
 
   it("shows the repo warning and cancels the active run", async () => {

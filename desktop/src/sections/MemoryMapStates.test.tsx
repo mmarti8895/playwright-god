@@ -13,16 +13,19 @@ vi.mock("@/lib/artifacts", async () => {
     ...actual,
     readMemoryMap: vi.fn(),
     readIndexStatus: vi.fn(),
+    readFlowGraph: vi.fn(),
     ragSearch: vi.fn(),
   };
 });
 
-import { readIndexStatus, readMemoryMap } from "@/lib/artifacts";
+import { readFlowGraph, readIndexStatus, readMemoryMap } from "@/lib/artifacts";
 
 describe("MemoryMap and Rag states", () => {
   beforeEach(() => {
     vi.mocked(readMemoryMap).mockReset();
     vi.mocked(readIndexStatus).mockReset();
+    vi.mocked(readFlowGraph).mockReset();
+    vi.mocked(readFlowGraph).mockResolvedValue(null);
     usePipelineStore.getState().reset();
     useUIStore.setState({
       activeRepo: "/tmp/repo",
@@ -105,6 +108,46 @@ describe("MemoryMap and Rag states", () => {
     fireEvent.click(screen.getByRole("button", { name: /auth/i }));
     await waitFor(() => expect(screen.getByText("src/app.ts")).toBeInTheDocument());
     expect(screen.getByText("2 chunks")).toBeInTheDocument();
+  });
+
+  it("MemoryMap opens Flow Graph with focus when a file has flow evidence", async () => {
+    vi.mocked(readMemoryMap).mockResolvedValue({
+      total_files: 1,
+      total_chunks: 2,
+      files: [{ path: "src/app.ts", chunk_count: 2 }],
+      features: [{ name: "Auth", files: ["src/app.ts"] }],
+    });
+    vi.mocked(readIndexStatus).mockResolvedValue({
+      has_index: true,
+      has_memory_map: true,
+      index_dir: "/tmp/repo/.idx",
+      memory_map_path: "/tmp/repo/.idx/memory_map.json",
+      active_run_id: null,
+      active_run_mode: null,
+    });
+    vi.mocked(readFlowGraph).mockResolvedValue({
+      nodes: [
+        {
+          id: "route.login",
+          kind: "route",
+          method: "GET",
+          path: "/login",
+          evidence: [{ file: "src/app.ts", line_range: [1, 2] }],
+        },
+      ],
+      edges: [],
+    });
+
+    render(<MemoryMapView />);
+    await waitFor(() => expect(screen.getByText("Auth")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /auth/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Open in Flow Graph" })).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open in Flow Graph" }));
+    expect(useUIStore.getState().activeSection).toBe("flow-graph");
+    expect(useUIStore.getState().flowGraphFocus?.query).toBe("src/app.ts");
   });
 
   it("MemoryMap groups files by directory when features are absent", async () => {

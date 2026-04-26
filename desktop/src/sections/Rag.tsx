@@ -29,9 +29,18 @@ export function RagView() {
     if (!repo) {
       setIndexStatus(null);
       setStatusLoading(false);
+      setHits([]);
+      setError(null);
+      setSearched(false);
+      setLoading(false);
       return;
     }
     let cancelled = false;
+    setHits([]);
+    setError(null);
+    setSearched(false);
+    setLoading(false);
+    setIndexStatus(null);
     setStatusLoading(true);
     void readIndexStatus(repo)
       .then((status) => {
@@ -42,6 +51,7 @@ export function RagView() {
       })
       .catch(() => {
         if (!cancelled) {
+          setIndexStatus(null);
           setStatusLoading(false);
         }
       });
@@ -135,7 +145,7 @@ export function RagView() {
         <button
           type="button"
           onClick={onSearch}
-          disabled={loading || !query.trim()}
+          disabled={loading || !query.trim() || !indexStatus?.has_index}
           className="rounded-md bg-ink-900 px-4 py-2 text-[12px] font-medium text-white hover:bg-ink-800 disabled:opacity-40"
         >
           {loading ? "Searching…" : "Search"}

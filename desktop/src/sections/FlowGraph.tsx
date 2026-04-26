@@ -13,10 +13,12 @@ import clsx from "clsx";
 import { Panel } from "@/components/Panel";
 import { useUIStore } from "@/state/ui";
 import {
-  readFlowGraph,
-  type FlowEdge,
-  type FlowGraph,
-  type FlowNode,
+  readFusedFlowGraph,
+  type FusedGraph,
+  type FusedGraphEdge,
+  type FusedGraphLayer,
+  type FusedGraphNode,
+  type FusedGraphRelation,
 } from "@/lib/artifacts";
 
 const MAX_NODES = 500;
@@ -26,24 +28,54 @@ const NODE_HEIGHT = 56;
 interface NodeData {
   label: string;
   sublabel?: string;
-  kind: FlowNode["kind"];
-  source: FlowNode;
+  layer: FusedGraphLayer;
+  source: FusedGraphNode;
   dimmed: boolean;
 }
 
 const nodeTypes = {
   route: FlowNodeView,
-  view: FlowNodeView,
   action: FlowNodeView,
+  file: FlowNodeView,
+  feature: FlowNodeView,
 };
+
+const ALL_LAYERS: FusedGraphLayer[] = ["route", "action", "file", "feature"];
+const ALL_RELATIONS: FusedGraphRelation[] = [
+  "flow",
+  "handled_by",
+  "evidence_for",
+  "in_feature",
+];
+
+function defaultLayerState(): Record<FusedGraphLayer, boolean> {
+  return {
+    route: true,
+    action: true,
+    file: true,
+    feature: true,
+  };
+}
+
+function defaultRelationState(): Record<FusedGraphRelation, boolean> {
+  return {
+    flow: true,
+    handled_by: true,
+    evidence_for: true,
+    in_feature: true,
+  };
+}
 
 export function FlowGraphView() {
   const repo = useUIStore((s) => s.activeRepo);
   const version = useUIStore((s) => s.artifactsVersion);
-  const [data, setData] = useState<FlowGraph | null>(null);
+  const consumeFocus = useUIStore((s) => s.consumeFlowGraphFocus);
+  const [data, setData] = useState<FusedGraph | null>(null);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState<FlowNode | null>(null);
+  const [selected, setSelected] = useState<FusedGraphNode | null>(null);
+  const [visibleLayers, setVisibleLayers] = useState(defaultLayerState);
+  const [visibleRelations, setVisibleRelations] = useState(defaultRelationState);
 
   useEffect(() => {
     if (!repo) {
@@ -52,17 +84,31 @@ export function FlowGraphView() {
     }
     let cancelled = false;
     setLoading(true);
-    void readFlowGraph(repo).then((fg) => {
-      if (!cancelled) {
-        setData(fg);
-        setLoading(false);
-        setSelected(null);
-      }
-    });
+    void readFusedFlowGraph(repo)
+      .then((fg) => {
+        if (!cancelled) {
+          setData(fg);
+          setLoading(false);
+          setSelected(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData(null);
+          setLoading(false);
+          setSelected(null);
+        }
+      });
     return () => {
       cancelled = true;
     };
   }, [repo, version]);
+
+  useEffect(() => {
+    const focus = consumeFocus();
+    if (!focus) return;
+    setFilter(focus.query);
+  }, [consumeFocus]);
 
   const total = data?.nodes?.length ?? 0;
   const truncated = total > MAX_NODES;
@@ -76,8 +122,16 @@ export function FlowGraphView() {
   );
 
   const { nodes, edges } = useMemo(
-    () => buildGraph(visibleNodes, data?.edges ?? [], visibleIds, filter.trim()),
-    [visibleNodes, data, visibleIds, filter],
+    () =>
+      buildGraph(
+        visibleNodes,
+        data?.edges ?? [],
+        visibleIds,
+        filter.trim(),
+        visibleLayers,
+        visibleRelations,
+      ),
+    [visibleNodes, data, visibleIds, filter, visibleLayers, visibleRelations],
   );
 
   if (!repo) {
@@ -115,7 +169,8 @@ export function FlowGraphView() {
       <header className="flex items-center justify-between gap-3 px-2">
         <div className="text-[12px] text-ink-500">
           <span className="font-medium text-ink-700">{total}</span> nodes ·
-          <span className="ml-1 font-medium text-ink-700">{data.edges?.length ?? 0}</span> edges
+          <span className="ml-1 font-medium text-ink-700">{data.edges?.length ?? 0}</span> edges ·
+          <span className="ml-1 font-medium text-ink-700">{data.meta.mode}</span>
         </div>
         <input
           type="text"
@@ -126,6 +181,46 @@ export function FlowGraphView() {
                      focus:border-ink-400 focus:outline-none"
         />
       </header>
+
+      {data.meta.missingSources.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+          Partial graph: missing {data.meta.missingSources.join(", ")}. Run indexing/graph extraction to
+          restore full connectivity.
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-4 px-2">
+        <div className="flex items-center gap-2 text-[12px]">
+          <span className="text-ink-500">Layers:</span>
+          {ALL_LAYERS.map((layer) => (
+            <label key={layer} className="inline-flex items-center gap-1 text-ink-700">
+              <input
+                type="checkbox"
+                checked={visibleLayers[layer]}
+                onChange={(e) =>
+                  setVisibleLayers((prev) => ({ ...prev, [layer]: e.target.checked }))
+                }
+              />
+              {layer}
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-[12px]">
+          <span className="text-ink-500">Relations:</span>
+          {ALL_RELATIONS.map((relation) => (
+            <label key={relation} className="inline-flex items-center gap-1 text-ink-700">
+              <input
+                type="checkbox"
+                checked={visibleRelations[relation]}
+                onChange={(e) =>
+                  setVisibleRelations((prev) => ({ ...prev, [relation]: e.target.checked }))
+                }
+              />
+              {relation}
+            </label>
+          ))}
+        </div>
+      </div>
 
       {truncated && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
@@ -156,15 +251,18 @@ export function FlowGraphView() {
 }
 
 function FlowNodeView({ data }: NodeProps<NodeData>) {
-  const isRoute = data.kind === "route";
-  const isAction = data.kind === "action";
+  const isRoute = data.layer === "route";
+  const isAction = data.layer === "action";
+  const isFile = data.layer === "file";
+  const isFeature = data.layer === "feature";
   return (
     <div
       className={clsx(
         "shadow-sm border text-[12px] leading-tight transition-opacity",
         data.dimmed ? "opacity-30" : "opacity-100",
         isRoute && "rounded-lg bg-white border-ink-300 px-3 py-2",
-        data.kind === "view" && "rounded-lg bg-violet-50 border-violet-300 px-3 py-2",
+        isFeature && "rounded-lg bg-violet-50 border-violet-300 px-3 py-2",
+        isFile && "rounded-lg bg-sky-50 border-sky-300 px-3 py-2",
         isAction && "rounded-full bg-amber-50 border-amber-300 px-3 py-1",
       )}
       style={{ width: NODE_WIDTH }}
@@ -177,13 +275,12 @@ function FlowNodeView({ data }: NodeProps<NodeData>) {
   );
 }
 
-function SidePanel({ node, onClose }: { node: FlowNode; onClose: () => void }) {
-  const evidence = node.evidence ?? [];
+function SidePanel({ node, onClose }: { node: FusedGraphNode; onClose: () => void }) {
   return (
     <aside className="w-72 shrink-0 overflow-y-auto rounded-xl border border-ink-200/60 bg-white p-3">
       <header className="mb-2 flex items-center justify-between">
         <span className="rounded bg-ink-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink-700">
-          {node.kind}
+          {node.layer}
         </span>
         <button
           type="button"
@@ -194,74 +291,67 @@ function SidePanel({ node, onClose }: { node: FlowNode; onClose: () => void }) {
         </button>
       </header>
       <div className="font-mono text-[12px] text-ink-800 break-all">{node.id}</div>
-      {evidence.length > 0 ? (
-        <div className="mt-3">
-          <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-500">
-            Evidence
-          </div>
-          <ul className="flex flex-col gap-1">
-            {evidence.map((e, i) => (
-              <li key={i} className="font-mono text-[11px] text-ink-700">
-                {e.file}:{e.line_range?.[0]}–{e.line_range?.[1]}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <div className="mt-3 text-[11px] text-ink-400">No evidence recorded.</div>
-      )}
+      {node.sublabel && <div className="mt-3 font-mono text-[11px] text-ink-600">{node.sublabel}</div>}
     </aside>
   );
 }
 
 function buildGraph(
-  flowNodes: FlowNode[],
-  flowEdges: FlowEdge[],
+  fusedNodes: FusedGraphNode[],
+  fusedEdges: FusedGraphEdge[],
   visibleIds: Set<string>,
   filter: string,
+  visibleLayers: Record<FusedGraphLayer, boolean>,
+  visibleRelations: Record<FusedGraphRelation, boolean>,
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
   const f = filter.toLowerCase();
-  const matches = (n: FlowNode) =>
+  const matches = (n: FusedGraphNode) =>
     !f ||
     n.id.toLowerCase().includes(f) ||
-    nodeLabel(n).toLowerCase().includes(f) ||
-    nodeSublabel(n).toLowerCase().includes(f);
+    n.label.toLowerCase().includes(f) ||
+    (n.sublabel ?? "").toLowerCase().includes(f);
+
+  const filteredNodes = fusedNodes.filter((n) => visibleLayers[n.layer]);
+  const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
 
   // dagre layout
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "LR", nodesep: 24, ranksep: 60 });
   g.setDefaultEdgeLabel(() => ({}));
-  for (const n of flowNodes) g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  for (const e of flowEdges) {
-    const s = e.source ?? e.source_id ?? "";
-    const t = e.target ?? e.target_id ?? "";
-    if (visibleIds.has(s) && visibleIds.has(t)) g.setEdge(s, t);
+  for (const n of filteredNodes) g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  for (const e of fusedEdges) {
+    if (!visibleRelations[e.relation]) continue;
+    if (visibleIds.has(e.source) && visibleIds.has(e.target) && filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target)) {
+      g.setEdge(e.source, e.target);
+    }
   }
   dagre.layout(g);
 
-  const nodes: Node<NodeData>[] = flowNodes.map((n) => {
+  const nodes: Node<NodeData>[] = filteredNodes.map((n) => {
     const pos = g.node(n.id);
     const data: NodeData = {
-      label: nodeLabel(n),
-      sublabel: nodeSublabel(n),
-      kind: n.kind,
+      label: n.label,
+      sublabel: n.sublabel,
+      layer: n.layer,
       source: n,
       dimmed: !matches(n),
     };
     return {
       id: n.id,
-      type: n.kind,
+      type: n.layer,
       data,
       position: { x: pos?.x ?? 0, y: pos?.y ?? 0 },
       draggable: false,
     };
   });
 
-  const edges: Edge[] = flowEdges
+  const edges: Edge[] = fusedEdges
     .map((e, i) => {
-      const s = e.source ?? e.source_id ?? "";
-      const t = e.target ?? e.target_id ?? "";
+      const s = e.source;
+      const t = e.target;
+      if (!visibleRelations[e.relation]) return null;
       if (!visibleIds.has(s) || !visibleIds.has(t)) return null;
+      if (!filteredNodeIds.has(s) || !filteredNodeIds.has(t)) return null;
       return {
         id: `e${i}`,
         source: s,
@@ -273,15 +363,4 @@ function buildGraph(
     .filter((e): e is Edge => e !== null);
 
   return { nodes, edges };
-}
-
-function nodeLabel(n: FlowNode): string {
-  if (n.kind === "route") return `${n.method} ${n.path}`;
-  if (n.kind === "view") return n.symbol || "default";
-  return n.role || "(action)";
-}
-function nodeSublabel(n: FlowNode): string {
-  if (n.kind === "route") return n.handler ?? "";
-  if (n.kind === "view") return n.file ?? "";
-  return `${n.file}:${n.line}`;
 }

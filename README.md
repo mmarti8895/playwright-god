@@ -1,3 +1,5 @@
+# https://nihadmemmedli.github.io/quorvex_ai/ is already better than this repo. Achieving in favor of it. 
+
 # playwright-god
 
 `playwright-god` is a CLI that indexes a repository, builds a compact memory of how its files relate, and uses that context to generate Playwright tests and plans from repository-aware RAG context.

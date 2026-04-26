@@ -26,9 +26,11 @@ export type PipelineEvent =
   | { type: "stdout-line"; step: PipelineStep; line: string }
   | { type: "stderr-line"; step: PipelineStep; line: string }
   | { type: "progress"; step: PipelineStep; fraction: number }
+  | { type: "diagnostic"; step: PipelineStep; category: string; message: string }
   | { type: "finished"; step: PipelineStep; exit_code: number }
   | { type: "cancelled"; run_id: string }
   | { type: "failed"; step: PipelineStep; exit_code: number; message: string }
+  | { type: "retry-attempt"; step: PipelineStep; attempt: number; max: number; delay_s: number }
   | { type: "run-finished"; run_id: string };
 
 export async function startPipeline(

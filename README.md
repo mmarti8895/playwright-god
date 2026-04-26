@@ -101,6 +101,8 @@ Options:
 | `-o`, `--output` | stdout | Write the plan to this file (must be a file path, not a directory) |
 | `--provider` | auto | LLM provider |
 | `--model` | provider default | Model name |
+| `--retry-max` | `3` (env: `PLAYWRIGHT_GOD_RETRY_MAX`) | Max LLM call attempts (0 = disable). |
+| `--retry-delay` | `2.0` (env: `PLAYWRIGHT_GOD_RETRY_DELAY_S`) | Initial backoff in seconds (doubles each retry, capped at 60 s). |
 
 ### Generate a Playwright test
 Focus the plan on one area:
@@ -140,6 +142,8 @@ playwright-god plan --memory-map .idx/memory_map.json --focus "authentication" -
 | `--ollama-url` | `http://localhost:11434` | Ollama server URL (used only with `--provider=ollama`) |
 | `--playwright-cli-url` | *(extract from context)* | Base URL passed to `npx playwright codegen` (used only with `--provider=playwright-cli`) |
 | `--playwright-cli-timeout` | `300` | Seconds to wait for the Playwright Inspector window to close (used only with `--provider=playwright-cli`) |
+| `--retry-max` | `3` (env: `PLAYWRIGHT_GOD_RETRY_MAX`) | Max LLM call attempts (0 = disable). |
+| `--retry-delay` | `2.0` (env: `PLAYWRIGHT_GOD_RETRY_DELAY_S`) | Initial backoff in seconds (doubles each retry, capped at 60 s). |
 
 #### Using the `playwright-cli` provider
 

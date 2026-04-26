@@ -35,9 +35,39 @@ The desktop application SHALL, when spawning a `playwright-god` subprocess, inje
 - **WHEN** the user saves provider=`anthropic`, model=`claude-3-7-sonnet-latest`, and an API key, then runs the pipeline
 - **THEN** the spawned CLI subprocess receives `PLAYWRIGHT_GOD_PROVIDER=anthropic`, `PLAYWRIGHT_GOD_MODEL=claude-3-7-sonnet-latest`, and `ANTHROPIC_API_KEY=<key>` in its environment
 
+#### Scenario: OpenAI settings resolve deterministically
+- **WHEN** provider=`openai` and model=`gpt-5.4` are configured and both desktop settings/secrets and repository `.env` may contain values
+- **THEN** the desktop app resolves effective runtime values with deterministic precedence (desktop settings/secrets first, then repository `.env` fallback, then process environment) and injects the resolved values into subprocesses
+
+#### Scenario: Effective key source is surfaced without secret disclosure
+- **WHEN** a pipeline run starts for an OpenAI-backed step
+- **THEN** the UI/run diagnostics show which source supplied credentials (`settings`, `repo-dotenv`, `process-env`, or `missing`) without logging or rendering key contents
+
 ### Requirement: Reset to defaults
 The Settings widget SHALL provide a "Reset to defaults" action that clears all stored values (including secure-store entries owned by this app) after a confirmation dialog.
 
 #### Scenario: User resets settings
 - **WHEN** the user clicks "Reset to defaults" and confirms
 - **THEN** all settings are cleared, the form returns to the empty/default state, and any stored API keys for this app are removed from the secure store
+
+### Requirement: LLM retry configuration fields
+The Settings schema SHALL include `llm_retry_max` (integer, minimum 0, default 3) and `llm_retry_delay_s` (float, minimum 0.0, default 2.0) fields that control retry behaviour for LLM-dependent pipeline steps.
+
+#### Scenario: Retry fields persisted and restored
+- **WHEN** the user sets `llm_retry_max=1` and `llm_retry_delay_s=5.0` and saves
+- **THEN** the values are persisted and pre-populated on the next app launch
+
+#### Scenario: Zero max disables retries
+- **WHEN** the user sets `llm_retry_max=0` and saves
+- **THEN** the pipeline passes `--retry-max 0` to `plan` and `generate`, disabling automatic retries
+
+#### Scenario: Negative values rejected
+- **WHEN** the user enters `llm_retry_max=-1` or `llm_retry_delay_s=-1.0`
+- **THEN** the form shows an inline validation error and the Save button is disabled
+
+### Requirement: Retry settings UI controls
+The Settings section SHALL expose a numeric input for "Max LLM retries" and a numeric input for "Retry initial delay (s)", with descriptive hint text explaining their effect.
+
+#### Scenario: Hint text shown for retry fields
+- **WHEN** the user views the Settings section
+- **THEN** both retry fields are visible with hint text: "Max LLM retries: number of automatic retry attempts on network errors (0 = disabled)" and "Retry initial delay: seconds before first retry; subsequent retries use exponential backoff"

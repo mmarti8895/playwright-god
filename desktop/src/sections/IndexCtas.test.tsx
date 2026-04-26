@@ -14,6 +14,7 @@ vi.mock("@/lib/artifacts", async () => {
     ...actual,
     readIndexStatus: vi.fn(),
     readMemoryMap: vi.fn(),
+    readFlowGraph: vi.fn(),
     ragSearch: vi.fn(),
   };
 });
@@ -28,7 +29,7 @@ vi.mock("@/lib/commands", () => ({
   pickRepository: vi.fn(),
 }));
 
-import { ragSearch, readIndexStatus, readMemoryMap } from "@/lib/artifacts";
+import { ragSearch, readFlowGraph, readIndexStatus, readMemoryMap } from "@/lib/artifacts";
 import { runIndex, runManagedPipeline } from "@/lib/pipeline-run";
 import { addRecentRepo, pickRepository } from "@/lib/commands";
 
@@ -45,6 +46,7 @@ describe("desktop index CTAs", () => {
   beforeEach(() => {
     vi.mocked(readIndexStatus).mockReset();
     vi.mocked(readMemoryMap).mockReset();
+    vi.mocked(readFlowGraph).mockReset();
     vi.mocked(ragSearch).mockReset();
     vi.mocked(runIndex).mockReset();
     vi.mocked(runManagedPipeline).mockReset();
@@ -52,6 +54,7 @@ describe("desktop index CTAs", () => {
     vi.mocked(addRecentRepo).mockReset();
     vi.mocked(readIndexStatus).mockResolvedValue(MISSING_INDEX);
     vi.mocked(readMemoryMap).mockResolvedValue(null);
+    vi.mocked(readFlowGraph).mockResolvedValue({ nodes: [], edges: [] });
     vi.mocked(ragSearch).mockResolvedValue({ hits: [], error: null });
     vi.mocked(pickRepository).mockResolvedValue(null);
     vi.mocked(addRecentRepo).mockResolvedValue([]);
@@ -306,5 +309,44 @@ describe("desktop index CTAs", () => {
     });
     rerender(<RagView />);
     expect(screen.getByText("Indexing repository…")).toBeInTheDocument();
+  });
+
+  it("RAG clears prior results when index status changes across refresh", async () => {
+    vi.mocked(readIndexStatus).mockResolvedValueOnce({
+      has_index: true,
+      has_memory_map: false,
+      index_dir: "/tmp/repo/.idx",
+      memory_map_path: null,
+      active_run_id: null,
+      active_run_mode: null,
+    });
+    vi.mocked(ragSearch).mockResolvedValueOnce({
+      hits: [{ file: "src/flow.ts", line: 2, score: 0.9, content: "flow" }],
+      error: null,
+    });
+
+    const { rerender } = render(<RagView />);
+    const query = await screen.findByPlaceholderText(/Search the repository index/i);
+    fireEvent.change(query, { target: { value: "flow" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(screen.getByText(/src\/flow\.ts:2/)).toBeInTheDocument());
+
+    vi.mocked(readIndexStatus).mockResolvedValueOnce({
+      has_index: false,
+      has_memory_map: false,
+      index_dir: null,
+      memory_map_path: null,
+      active_run_id: null,
+      active_run_mode: null,
+    });
+    act(() => {
+      useUIStore.getState().bumpArtifactsVersion();
+    });
+    rerender(<RagView />);
+
+    await waitFor(() =>
+      expect(screen.getByText("No repository index found")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/src\/flow\.ts:2/)).not.toBeInTheDocument();
   });
 });

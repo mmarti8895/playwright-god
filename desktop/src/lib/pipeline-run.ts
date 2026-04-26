@@ -22,6 +22,9 @@ function applyPipelineEvent(event: PipelineEvent) {
     case "stderr-line":
       append("stderr", `[${event.step}] ${event.line}`);
       break;
+    case "diagnostic":
+      append("info", `DIAG ${event.step} [${event.category}]: ${event.message}`);
+      break;
     case "finished":
       append("info", `OK ${event.step}`);
       break;

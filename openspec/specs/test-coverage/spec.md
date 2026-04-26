@@ -58,3 +58,27 @@ The `tests/unit/test_cli.py` suite SHALL pass deterministically regardless of va
 
 - **WHEN** any test in `tests/unit/test_cli.py` executes
 - **THEN** the variables `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `PLAYWRIGHT_GOD_PROVIDER`, `PLAYWRIGHT_GOD_MODEL`, and `OLLAMA_URL` are absent from `os.environ` unless the test sets them explicitly via `monkeypatch.setenv`
+
+### Requirement: Coverage & Gaps view supports run lifecycle states
+
+The Coverage & Gaps view SHALL implement a four-state lifecycle: `idle` (no report, no active run), `running` (subprocess active), `done` (report loaded), and `error` (run failed or report unreadable). Visual affordances SHALL match the current state at all times.
+
+#### Scenario: Idle state shows empty-state prompt with Run button
+
+- **WHEN** no coverage report exists and no run is in progress
+- **THEN** the view shows the "No coverage report yet" empty-state message AND an enabled **Run Coverage** button
+
+#### Scenario: Running state shows progress log and Cancel button
+
+- **WHEN** a coverage run is in progress
+- **THEN** the view shows the live log panel, a **Cancel** button, and hides the run/clear buttons
+
+#### Scenario: Done state shows report and Clear button
+
+- **WHEN** a coverage run finishes successfully and the report is loaded
+- **THEN** the view shows the full coverage report (totals header + tabs) and a **Clear** button in the toolbar
+
+#### Scenario: Error state shows error message and Run button
+
+- **WHEN** a coverage run exits with a non-zero code or the report file is unreadable
+- **THEN** the view shows the error message from the log AND re-enables the **Run Coverage** button so the user can retry

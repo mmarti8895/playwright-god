@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import AnsiToHtml from "ansi-to-html";
 import { useOutputStore } from "@/state/output";
-import { exportRows } from "@/lib/csv";
+import { exportOutputText } from "@/lib/csv";
+import { errorMessage } from "@/lib/tauri";
 
 const ANSI = new AnsiToHtml({
   fg: "#1c1917",
@@ -14,7 +15,18 @@ const ANSI = new AnsiToHtml({
 export function OutputPane() {
   const lines = useOutputStore((s) => s.lines);
   const clear = useOutputStore((s) => s.clear);
+  const append = useOutputStore((s) => s.append);
   const ref = useRef<VirtuosoHandle | null>(null);
+
+  const handleExport = async () => {
+    const text = lines.map((line) => line.text).join("\n");
+    try {
+      const result = await exportOutputText(text);
+      append("info", result.message);
+    } catch (error) {
+      append("info", `Export failed: ${errorMessage(error)}`);
+    }
+  };
 
   // Auto-scroll to the bottom when new lines arrive.
   useEffect(() => {
@@ -34,17 +46,9 @@ export function OutputPane() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() =>
-              exportRows(
-                lines,
-                [
-                  { header: "timestamp", value: (l) => l.ts },
-                  { header: "stream", value: (l) => l.stream },
-                  { header: "line", value: (l) => l.text },
-                ],
-                "output.csv",
-              )
-            }
+            onClick={() => {
+              void handleExport();
+            }}
             disabled={lines.length === 0}
             className="rounded px-2 py-0.5 text-[11px] text-ink-600 hover:bg-ink-100 disabled:opacity-40"
           >

@@ -21,6 +21,7 @@ interface PipelineState {
   startedAt: number | null;
   finishedAt: number | null;
   errorMessage: string | null;
+  retrying: boolean;
 
   begin: (runId: string, steps: PipelineStep[]) => void;
   apply: (event: PipelineEvent) => void;
@@ -37,6 +38,7 @@ const initial = {
   startedAt: null,
   finishedAt: null,
   errorMessage: null,
+  retrying: false,
 };
 
 export const usePipelineStore = create<PipelineState>((set) => ({
@@ -73,6 +75,7 @@ export const usePipelineStore = create<PipelineState>((set) => ({
             currentStep: null,
             completedSteps: s.completedSteps + 1,
             stepFraction: 0,
+            retrying: false,
           };
         case "run-finished":
           return {
@@ -80,12 +83,14 @@ export const usePipelineStore = create<PipelineState>((set) => ({
             currentStep: null,
             stepFraction: 1,
             finishedAt: Date.now(),
+            retrying: false,
           };
         case "cancelled":
           return {
             status: "cancelled" as PipelineStatus,
             currentStep: null,
             finishedAt: Date.now(),
+            retrying: false,
           };
         case "failed":
           return {
@@ -93,7 +98,10 @@ export const usePipelineStore = create<PipelineState>((set) => ({
             currentStep: event.step,
             errorMessage: event.message,
             finishedAt: Date.now(),
+            retrying: false,
           };
+        case "retry-attempt":
+          return { retrying: true };
         default:
           return {};
       }
